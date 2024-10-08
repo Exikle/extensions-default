@@ -2504,7 +2504,7 @@ function getServerUnavailableMangaTiles() {
 }
 exports.getServerUnavailableMangaTiles = getServerUnavailableMangaTiles;
 function searchRequest(searchQuery, metadata, requestManager, stateManager, page_size) {
-    var _a;
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
         // We won't use `await this.getKomgaAPI()` as we do not want to throw an error
@@ -2566,7 +2566,7 @@ function searchRequest(searchQuery, metadata, requestManager, stateManager, page
         }
         const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
         const tiles = [];
-        for (const serie of result.content) {
+        for (const serie of (_b = result.content) !== null && _b !== void 0 ? _b : []) {
             tiles.push(App.createPartialSourceManga({
                 title: serie.metadata.title,
                 image: `${komgaAPI}/series/${serie.id}/thumbnail`,
@@ -2759,7 +2759,7 @@ const Common_1 = require("./Common");
 //  - getTags() which is called on the homepage
 //  - search method which is called even if the user search in an other source
 exports.PaperbackInfo = {
-    version: '1.2.12',
+    version: '1.3',
     name: 'Paperback',
     icon: 'icon.png',
     author: 'Lemon | Faizan Durrani',
@@ -2773,7 +2773,7 @@ exports.PaperbackInfo = {
             type: types_1.BadgeColor.RED
         },
     ],
-    intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS | types_1.SourceIntents.SETTINGS_UI
+    intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS | types_1.SourceIntents.SETTINGS_UI | types_1.SourceIntents.MANGA_TRACKING
 };
 const SUPPORTED_IMAGE_TYPES = [
     'image/jpeg',
@@ -2856,6 +2856,7 @@ class Paperback extends types_1.Source {
         });
     }
     getTags() {
+        var _a, _b, _c, _d;
         return __awaiter(this, void 0, void 0, function* () {
             // This function is called on the homepage and should not throw if the server is unavailable
             // We define four types of tags:
@@ -2917,9 +2918,9 @@ class Paperback extends types_1.Source {
             // For each tag, we append a type identifier to its id and capitalize its label
             tagSections[0].tags = genresResult.map((elem) => App.createTag({ id: 'genre-' + elem, label: (0, exports.capitalize)(elem) }));
             tagSections[1].tags = tagsResult.map((elem) => App.createTag({ id: 'tag-' + elem, label: (0, exports.capitalize)(elem) }));
-            tagSections[2].tags = collectionResult.content.map((elem) => App.createTag({ id: 'collection-' + elem.id, label: (0, exports.capitalize)(elem.name) }));
+            tagSections[2].tags = (_b = (_a = collectionResult.content) === null || _a === void 0 ? void 0 : _a.map((elem) => App.createTag({ id: 'collection-' + elem.id, label: (0, exports.capitalize)(elem.name) }))) !== null && _b !== void 0 ? _b : [];
             tagSections[3].tags = libraryResult.map((elem) => App.createTag({ id: 'library-' + elem.id, label: (0, exports.capitalize)(elem.name) }));
-            if (collectionResult.content.length <= 1) {
+            if (((_d = (_c = collectionResult.content) === null || _c === void 0 ? void 0 : _c.length) !== null && _d !== void 0 ? _d : 0) <= 1) {
                 tagSections.splice(2, 1);
             }
             return tagSections;
@@ -2974,6 +2975,7 @@ class Paperback extends types_1.Source {
         });
     }
     getChapters(mangaId) {
+        var _a;
         return __awaiter(this, void 0, void 0, function* () {
             /*
                     In Komga a chapter is a `book`
@@ -2999,7 +3001,7 @@ class Paperback extends types_1.Source {
                 ? JSON.parse(serieResponse.data)
                 : serieResponse.data;
             const languageCode = (0, Languages_1.parseLangCode)(serieResult.metadata.language);
-            for (const book of booksResult.content) {
+            for (const book of (_a = booksResult.content) !== null && _a !== void 0 ? _a : []) {
                 chapters.push(App.createChapter({
                     id: book.id,
                     chapNum: parseFloat(book.metadata.number),
@@ -3137,9 +3139,13 @@ class Paperback extends types_1.Source {
                     method: 'GET'
                 });
                 // Get the section data
-                promises.push(this.requestManager.schedule(request, 1).then((data) => {
+                promises.push((() => __awaiter(this, void 0, void 0, function* () {
+                    const data = yield this.requestManager.schedule(request, 1);
                     const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
                     const tiles = [];
+                    if (!result.content) {
+                        return;
+                    }
                     for (const serie of result.content) {
                         tiles.push(App.createPartialSourceManga({
                             title: serie.metadata.title,
@@ -3150,14 +3156,14 @@ class Paperback extends types_1.Source {
                     }
                     section.items = tiles;
                     sectionCallback(section);
-                }));
+                }))());
             }
             // Make sure the function completes
             yield Promise.all(promises);
         });
     }
     getViewMoreItems(homepageSectionId, metadata) {
-        var _a;
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
             const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
             const page = (_a = metadata === null || metadata === void 0 ? void 0 : metadata.page) !== null && _a !== void 0 ? _a : 0;
@@ -3169,7 +3175,7 @@ class Paperback extends types_1.Source {
             const data = yield this.requestManager.schedule(request, 1);
             const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
             const tiles = [];
-            for (const serie of result.content) {
+            for (const serie of (_b = result.content) !== null && _b !== void 0 ? _b : []) {
                 tiles.push(App.createPartialSourceManga({
                     title: serie.metadata.title,
                     image: `${komgaAPI}/series/${serie.id}/thumbnail`,
@@ -3186,6 +3192,7 @@ class Paperback extends types_1.Source {
         });
     }
     filterUpdatedManga(mangaUpdatesFoundCallback, time, ids) {
+        var _a, _b;
         return __awaiter(this, void 0, void 0, function* () {
             const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
             // We make requests of PAGE_SIZE titles to `series/updated/` until we got every titles
@@ -3201,11 +3208,11 @@ class Paperback extends types_1.Source {
                 });
                 const data = yield this.requestManager.schedule(request, 1);
                 const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-                for (const serie of result.content) {
+                for (const serie of (_a = result.content) !== null && _a !== void 0 ? _a : []) {
                     const serieUpdated = new Date(serie.metadata.lastModified);
                     if (serieUpdated >= time) {
-                        if (ids.includes(serie)) {
-                            foundIds.push(serie);
+                        if (ids.includes(serie.id)) {
+                            foundIds.push(serie.id);
                         }
                     }
                     else {
@@ -3214,7 +3221,7 @@ class Paperback extends types_1.Source {
                     }
                 }
                 // If no series were returned we are on the last page
-                if (result.content.length === 0) {
+                if (((_b = result.content) === null || _b === void 0 ? void 0 : _b.length) === 0) {
                     loadMore = false;
                 }
                 page = page + 1;
@@ -3222,6 +3229,78 @@ class Paperback extends types_1.Source {
                     mangaUpdatesFoundCallback(App.createMangaUpdates({
                         ids: foundIds
                     }));
+                }
+            }
+        });
+    }
+    getMangaProgressManagementForm(mangaId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return App.createDUIForm({
+                sections: () => __awaiter(this, void 0, void 0, function* () {
+                    return [
+                        App.createDUISection({
+                            id: 'mangaId',
+                            rows: () => __awaiter(this, void 0, void 0, function* () {
+                                return [
+                                    App.createDUILabel({
+                                        id: 'id',
+                                        label: 'Manga id: ' + mangaId,
+                                        value: undefined
+                                    }),
+                                    App.createDUILabel({
+                                        id: 'info',
+                                        label: 'The app will sync read chapters to the Komga server',
+                                        value: undefined
+                                    })
+                                ];
+                            }),
+                            isHidden: false
+                        })
+                    ];
+                }),
+                onSubmit: () => {
+                    return Promise.resolve();
+                },
+            });
+        });
+    }
+    processChapterReadActionQueue(actionQueue) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const chapterReadActions = yield actionQueue.queuedChapterReadActions();
+            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
+            for (const readAction of chapterReadActions) {
+                if (readAction.sourceId != 'Paperback') {
+                    console.log(`Manga ${readAction.mangaId} from source ${readAction.sourceId} can not be used as it does not come from Komga. Discarding`);
+                    yield actionQueue.discardChapterReadAction(readAction);
+                }
+                else {
+                    try {
+                        // The app only support completed read status so the last page read is not important and set to 1
+                        const request = App.createRequest({
+                            url: `${komgaAPI}/books/${readAction.sourceChapterId}/read-progress`,
+                            method: 'PATCH',
+                            headers: { 'content-type': 'application/json' },
+                            data: {
+                                'page': 1,
+                                'completed': true
+                            }
+                        });
+                        const response = yield this.requestManager.schedule(request, 1);
+                        if (response.status < 400) {
+                            console.log(`${readAction.sourceChapterId} chapter marked as read`);
+                            yield actionQueue.discardChapterReadAction(readAction);
+                        }
+                        else {
+                            console.log(`${readAction.sourceChapterId} chapter needs to be retried`);
+                            console.log(`${response.status} --- ${response.data}`);
+                            yield actionQueue.retryChapterReadAction(readAction);
+                        }
+                    }
+                    catch (error) {
+                        console.log(`Tracker action for manga id ${readAction.mangaId} failed with error:`);
+                        console.log(error);
+                        yield actionQueue.retryChapterReadAction(readAction);
+                    }
                 }
             }
         });

@@ -2,7 +2,7 @@ import { SearchRequest,
     PagedResults,
     SourceStateManager,
     RequestManager,
-    Response } from '@paperback/types'
+    Response } from '@paperback/types/lib/compat/0.8'
 import { PageSeriesDto } from './data-contracts'
 export function getServerUnavailableMangaTiles() {
     // This tile is used as a placeholder when the server is unavailable

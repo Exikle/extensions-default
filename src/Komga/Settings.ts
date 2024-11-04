@@ -1,7 +1,7 @@
 import { DUIButton,
     DUINavigationButton,
     RequestManager,
-    SourceStateManager } from '@paperback/types'
+    SourceStateManager } from '@paperback/types/lib/compat/0.8'
 import { retrieveStateData,
     setStateData,
     getKomgaAPI,

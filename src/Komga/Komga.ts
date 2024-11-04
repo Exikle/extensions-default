@@ -1,6 +1,5 @@
 import { Chapter,
     ChapterDetails,
-    ContentRating,
     HomeSection,
     SourceManga,
     PartialSourceManga,
@@ -11,16 +10,13 @@ import { Chapter,
     SearchRequest,
     DUISection,
     Source,
-    SourceInfo,
     SourceStateManager,
     TagSection,
-    BadgeColor,
     SourceInterceptor, 
-    SourceIntents,
-    MangaProgressProviding,
     TrackerActionQueue,
     DUIForm
-} from '@paperback/types'
+} from '@paperback/types/lib/compat/0.8'
+
 import { parseLangCode } from './Languages'
 import { resetSettingsButton,
     serverSettingsMenu,
@@ -30,6 +26,7 @@ import { getAuthorizationString,
     getOptions,
     getServerUnavailableMangaTiles,
     searchRequest, } from './Common'
+    
 import { BookDto, LibraryDto, PageBookDto, PageCollectionDto, PageDto, ReadProgressUpdateDto, SeriesDto } from './data-contracts'
 // This source use Komga REST API
 // https://komga.org/guides/rest.html
@@ -43,23 +40,7 @@ import { BookDto, LibraryDto, PageBookDto, PageCollectionDto, PageDto, ReadProgr
 //  - homepage sections
 //  - getTags() which is called on the homepage
 //  - search method which is called even if the user search in an other source
-export const PaperbackInfo: SourceInfo = {
-    version: '1.3',
-    name: 'Paperback',
-    icon: 'icon.png',
-    author: 'Lemon | Faizan Durrani',
-    authorWebsite: 'https://github.com/FramboisePi',
-    description: 'Komga client extension for Paperback',
-    contentRating: ContentRating.EVERYONE,
-    websiteBaseURL: 'https://komga.org',
-    sourceTags: [
-        {
-            text: 'Self hosted',
-            type: BadgeColor.RED
-        },
-    ],
-    intents: SourceIntents.MANGA_CHAPTERS | SourceIntents.HOMEPAGE_SECTIONS | SourceIntents.SETTINGS_UI | SourceIntents.MANGA_TRACKING
-}
+
 const SUPPORTED_IMAGE_TYPES = [
     'image/jpeg',
     'image/png',
@@ -115,7 +96,7 @@ export class KomgaRequestInterceptor implements SourceInterceptor {
         return request
     }
 }
-export class Paperback extends Source {
+export class Komga extends Source {
     stateManager = App.createSourceStateManager();
     requestManager = App.createRequestManager({
         requestsPerSecond: 4,

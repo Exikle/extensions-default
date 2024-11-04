@@ -5,10 +5,9 @@
   "description": "Default extensions for Paperback 0.8",
   "main": "lib/index.js",
   "scripts": {
-    "test": "npx paperback test",
-    "migrate": "npx paperback migrate",
-    "bundle": "npx paperback bundle",
-    "serve": "npx paperback serve",
+    "test": "npx paperback-cli test",
+    "bundle": "npx paperback-cli bundle",
+    "serve": "npx paperback-cli serve",
     "dev": "npx nodemon --watch \"**/*.ts\" --ext \"js ts\" --exec \"npm run serve\""
   },
   "repository": {
@@ -29,7 +28,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "@paperback/toolchain": "^1.0.0-alpha.24",
-    "@paperback/types": "^1.0.0-alpha.24"
+    "@paperback/toolchain": "^1.0.0-alpha.26",
+    "@paperback/types": "^1.0.0-alpha.26"
   }
 }

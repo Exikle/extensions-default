@@ -1,8 +1,8 @@
 {
-  "buildTime": "2024-11-04T19:21:21.300Z",
+  "buildTime": "2024-11-08T11:36:57.741Z",
   "builtWith": {
-    "toolchain": "1.0.0-alpha.26",
-    "types": "1.0.0-alpha.26"
+    "toolchain": "1.0.0-alpha.27",
+    "types": "1.0.0-alpha.27"
   },
   "repository": {
     "description": "An extension repository for Paperback",
@@ -10,7 +10,7 @@
   },
   "sources": [
     {
-      "version": "2.0",
+      "version": "2.1",
       "name": "Komga",
       "icon": "icon.png",
       "developers": [

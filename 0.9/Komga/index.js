@@ -2002,9 +2002,15 @@ var source = (() => {
       init_buffer();
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.Section = Section;
-      function Section(id, items) {
+      function Section(params, items) {
+        let info;
+        if (typeof params === "string") {
+          info = { id: params };
+        } else {
+          info = params;
+        }
         return {
-          id,
+          ...info,
           items: items.filter((x) => x)
         };
       }
@@ -3151,6 +3157,8 @@ var source = (() => {
         form;
         section;
         id;
+        header;
+        footer;
         bindingValueCache = {};
         items = [];
         proxies = {};
@@ -3158,6 +3166,8 @@ var source = (() => {
           this.form = form;
           this.section = section;
           this.id = section.id;
+          this.header = section.header;
+          this.footer = section.footer;
           this.reloadRows();
         }
         reloadRows() {

@@ -1,7 +1,7 @@
 import { ContentRating, SourceInfo, SourceIntents } from "@paperback/types"
 
 export default {
-    version: '2.0',
+    version: '2.1',
     name: 'Komga',
     icon: 'icon.png',
     developers: [

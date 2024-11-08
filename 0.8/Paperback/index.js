@@ -2480,15 +2480,6 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
 },{}],65:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setStateData = exports.retrieveStateData = exports.getOptions = exports.getKomgaAPI = exports.getAuthorizationString = exports.searchRequest = exports.getServerUnavailableMangaTiles = void 0;
 function getServerUnavailableMangaTiles() {
@@ -2503,83 +2494,80 @@ function getServerUnavailableMangaTiles() {
     ];
 }
 exports.getServerUnavailableMangaTiles = getServerUnavailableMangaTiles;
-function searchRequest(searchQuery, metadata, requestManager, stateManager, page_size) {
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-        // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
-        // We won't use `await this.getKomgaAPI()` as we do not want to throw an error
-        const komgaAPI = yield getKomgaAPI(stateManager);
-        const { orderResultsAlphabetically } = yield getOptions(stateManager);
-        if (komgaAPI === null) {
-            console.log('searchRequest failed because server settings are unset');
-            return App.createPagedResults({
-                results: getServerUnavailableMangaTiles()
-            });
-        }
-        const page = (_a = metadata === null || metadata === void 0 ? void 0 : metadata.page) !== null && _a !== void 0 ? _a : 0;
-        const paramsList = [`page=${page}`, `size=${page_size}`];
-        if (searchQuery.title !== undefined && searchQuery.title !== '') {
-            paramsList.push('search=' + encodeURIComponent(searchQuery.title));
-        }
-        if (searchQuery.includedTags !== undefined) {
-            searchQuery.includedTags.forEach((tag) => {
-                // There are two types of tags: `tag` and `genre`
-                if (tag.id.substr(0, 4) == 'tag-') {
-                    paramsList.push('tag=' + encodeURIComponent(tag.id.substring(4)));
-                }
-                if (tag.id.substr(0, 6) == 'genre-') {
-                    paramsList.push('genre=' + encodeURIComponent(tag.id.substring(6)));
-                }
-                if (tag.id.substr(0, 11) == 'collection-') {
-                    paramsList.push('collection_id=' + encodeURIComponent(tag.id.substring(11)));
-                }
-                if (tag.id.substr(0, 8) == 'library-') {
-                    paramsList.push('library_id=' + encodeURIComponent(tag.id.substring(8)));
-                }
-            });
-        }
-        if (orderResultsAlphabetically) {
-            paramsList.push('sort=titleSort');
-        }
-        else {
-            paramsList.push('sort=lastModified,desc');
-        }
-        let paramsString = '';
-        if (paramsList.length > 0) {
-            paramsString = '?' + paramsList.join('&');
-        }
-        const request = App.createRequest({
-            url: `${komgaAPI}/series`,
-            method: 'GET',
-            param: paramsString
-        });
-        // We don't want to throw if the server is unavailable
-        let data;
-        try {
-            data = yield requestManager.schedule(request, 1);
-        }
-        catch (error) {
-            console.log(`searchRequest failed with error: ${error}`);
-            return App.createPagedResults({
-                results: getServerUnavailableMangaTiles()
-            });
-        }
-        const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-        const tiles = [];
-        for (const serie of (_b = result.content) !== null && _b !== void 0 ? _b : []) {
-            tiles.push(App.createPartialSourceManga({
-                title: serie.metadata.title,
-                image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                mangaId: serie.id,
-                subtitle: undefined
-            }));
-        }
-        // If no series were returned we are on the last page
-        metadata = tiles.length === 0 ? undefined : { page: page + 1 };
+async function searchRequest(searchQuery, metadata, requestManager, stateManager, page_size) {
+    // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
+    // We won't use `await this.getKomgaAPI()` as we do not want to throw an error
+    const komgaAPI = await getKomgaAPI(stateManager);
+    const { orderResultsAlphabetically } = await getOptions(stateManager);
+    if (komgaAPI === null) {
+        console.log('searchRequest failed because server settings are unset');
         return App.createPagedResults({
-            results: tiles,
-            metadata
+            results: getServerUnavailableMangaTiles()
         });
+    }
+    const page = metadata?.page ?? 0;
+    const paramsList = [`page=${page}`, `size=${page_size}`];
+    if (searchQuery.title !== undefined && searchQuery.title !== '') {
+        paramsList.push('search=' + encodeURIComponent(searchQuery.title));
+    }
+    if (searchQuery.includedTags !== undefined) {
+        searchQuery.includedTags.forEach((tag) => {
+            // There are two types of tags: `tag` and `genre`
+            if (tag.id.substr(0, 4) == 'tag-') {
+                paramsList.push('tag=' + encodeURIComponent(tag.id.substring(4)));
+            }
+            if (tag.id.substr(0, 6) == 'genre-') {
+                paramsList.push('genre=' + encodeURIComponent(tag.id.substring(6)));
+            }
+            if (tag.id.substr(0, 11) == 'collection-') {
+                paramsList.push('collection_id=' + encodeURIComponent(tag.id.substring(11)));
+            }
+            if (tag.id.substr(0, 8) == 'library-') {
+                paramsList.push('library_id=' + encodeURIComponent(tag.id.substring(8)));
+            }
+        });
+    }
+    if (orderResultsAlphabetically) {
+        paramsList.push('sort=titleSort');
+    }
+    else {
+        paramsList.push('sort=lastModified,desc');
+    }
+    let paramsString = '';
+    if (paramsList.length > 0) {
+        paramsString = '?' + paramsList.join('&');
+    }
+    const request = App.createRequest({
+        url: `${komgaAPI}/series`,
+        method: 'GET',
+        param: paramsString
+    });
+    // We don't want to throw if the server is unavailable
+    let data;
+    try {
+        data = await requestManager.schedule(request, 1);
+    }
+    catch (error) {
+        console.log(`searchRequest failed with error: ${error}`);
+        return App.createPagedResults({
+            results: getServerUnavailableMangaTiles()
+        });
+    }
+    const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+    const tiles = [];
+    for (const serie of result.content ?? []) {
+        tiles.push(App.createPartialSourceManga({
+            title: serie.metadata.title,
+            image: `${komgaAPI}/series/${serie.id}/thumbnail`,
+            mangaId: serie.id,
+            subtitle: undefined
+        }));
+    }
+    // If no series were returned we are on the last page
+    metadata = tiles.length === 0 ? undefined : { page: page + 1 };
+    return App.createPagedResults({
+        results: tiles,
+        metadata
     });
 }
 exports.searchRequest = searchRequest;
@@ -2593,73 +2581,52 @@ const DEFAULT_KOMGA_PASSWORD = '';
 const DEFAULT_SHOW_ON_DECK = false;
 const DEFAULT_SORT_RESULTS_ALPHABETICALLY = true;
 const DEFAULT_SHOW_CONTINUE_READING = false;
-function getAuthorizationString(stateManager) {
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-        return (_a = (yield stateManager.keychain.retrieve('authorization'))) !== null && _a !== void 0 ? _a : '';
-    });
+async function getAuthorizationString(stateManager) {
+    return await stateManager.keychain.retrieve('authorization') ?? '';
 }
 exports.getAuthorizationString = getAuthorizationString;
-function getKomgaAPI(stateManager) {
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-        return (_a = (yield stateManager.retrieve('komgaAPI'))) !== null && _a !== void 0 ? _a : DEFAULT_KOMGA_API;
-    });
+async function getKomgaAPI(stateManager) {
+    return await stateManager.retrieve('komgaAPI') ?? DEFAULT_KOMGA_API;
 }
 exports.getKomgaAPI = getKomgaAPI;
-function getOptions(stateManager) {
-    var _a, _b, _c;
-    return __awaiter(this, void 0, void 0, function* () {
-        const showOnDeck = (_a = (yield stateManager.retrieve('showOnDeck'))) !== null && _a !== void 0 ? _a : DEFAULT_SHOW_ON_DECK;
-        const orderResultsAlphabetically = (_b = (yield stateManager.retrieve('orderResultsAlphabetically'))) !== null && _b !== void 0 ? _b : DEFAULT_SORT_RESULTS_ALPHABETICALLY;
-        const showContinueReading = (_c = (yield stateManager.retrieve('showContinueReading'))) !== null && _c !== void 0 ? _c : DEFAULT_SHOW_CONTINUE_READING;
-        return { showOnDeck, orderResultsAlphabetically, showContinueReading };
-    });
+async function getOptions(stateManager) {
+    const showOnDeck = await stateManager.retrieve('showOnDeck') ?? DEFAULT_SHOW_ON_DECK;
+    const orderResultsAlphabetically = await stateManager.retrieve('orderResultsAlphabetically') ?? DEFAULT_SORT_RESULTS_ALPHABETICALLY;
+    const showContinueReading = await stateManager.retrieve('showContinueReading') ?? DEFAULT_SHOW_CONTINUE_READING;
+    return { showOnDeck, orderResultsAlphabetically, showContinueReading };
 }
 exports.getOptions = getOptions;
-function retrieveStateData(stateManager) {
-    var _a, _b, _c, _d, _e, _f;
-    return __awaiter(this, void 0, void 0, function* () {
-        // Return serverURL, serverUsername and serverPassword saved in the source.
-        // Used to show already saved data in settings
-        const serverURL = (_a = (yield stateManager.retrieve('serverURL'))) !== null && _a !== void 0 ? _a : DEFAULT_KOMGA_SERVER_ADDRESS;
-        const serverUsername = (_b = (yield stateManager.keychain.retrieve('serverUsername'))) !== null && _b !== void 0 ? _b : DEFAULT_KOMGA_USERNAME;
-        const serverPassword = (_c = (yield stateManager.keychain.retrieve('serverPassword'))) !== null && _c !== void 0 ? _c : DEFAULT_KOMGA_PASSWORD;
-        const showOnDeck = (_d = (yield stateManager.retrieve('showOnDeck'))) !== null && _d !== void 0 ? _d : DEFAULT_SHOW_ON_DECK;
-        const orderResultsAlphabetically = (_e = (yield stateManager.retrieve('orderResultsAlphabetically'))) !== null && _e !== void 0 ? _e : DEFAULT_SORT_RESULTS_ALPHABETICALLY;
-        const showContinueReading = (_f = (yield stateManager.retrieve('showContinueReading'))) !== null && _f !== void 0 ? _f : DEFAULT_SHOW_CONTINUE_READING;
-        return { serverURL, serverUsername, serverPassword, showOnDeck, orderResultsAlphabetically, showContinueReading };
-    });
+async function retrieveStateData(stateManager) {
+    // Return serverURL, serverUsername and serverPassword saved in the source.
+    // Used to show already saved data in settings
+    const serverURL = await stateManager.retrieve('serverURL') ?? DEFAULT_KOMGA_SERVER_ADDRESS;
+    const serverUsername = await stateManager.keychain.retrieve('serverUsername') ?? DEFAULT_KOMGA_USERNAME;
+    const serverPassword = await stateManager.keychain.retrieve('serverPassword') ?? DEFAULT_KOMGA_PASSWORD;
+    const showOnDeck = await stateManager.retrieve('showOnDeck') ?? DEFAULT_SHOW_ON_DECK;
+    const orderResultsAlphabetically = await stateManager.retrieve('orderResultsAlphabetically') ?? DEFAULT_SORT_RESULTS_ALPHABETICALLY;
+    const showContinueReading = await stateManager.retrieve('showContinueReading') ?? DEFAULT_SHOW_CONTINUE_READING;
+    return { serverURL, serverUsername, serverPassword, showOnDeck, orderResultsAlphabetically, showContinueReading };
 }
 exports.retrieveStateData = retrieveStateData;
-function setStateData(stateManager, data) {
-    var _a, _b, _c, _d, _e, _f;
-    return __awaiter(this, void 0, void 0, function* () {
-        yield setKomgaServerAddress(stateManager, (_a = data['serverURL']) !== null && _a !== void 0 ? _a : DEFAULT_KOMGA_SERVER_ADDRESS);
-        yield setCredentials(stateManager, (_b = data['serverUsername']) !== null && _b !== void 0 ? _b : DEFAULT_KOMGA_USERNAME, (_c = data['serverPassword']) !== null && _c !== void 0 ? _c : DEFAULT_KOMGA_PASSWORD);
-        yield setOptions(stateManager, (_d = data['showOnDeck']) !== null && _d !== void 0 ? _d : DEFAULT_SHOW_ON_DECK, (_e = data['orderResultsAlphabetically']) !== null && _e !== void 0 ? _e : DEFAULT_SORT_RESULTS_ALPHABETICALLY, (_f = data['showContinueReading']) !== null && _f !== void 0 ? _f : DEFAULT_SHOW_CONTINUE_READING);
-    });
+async function setStateData(stateManager, data) {
+    await setKomgaServerAddress(stateManager, data['serverURL'] ?? DEFAULT_KOMGA_SERVER_ADDRESS);
+    await setCredentials(stateManager, data['serverUsername'] ?? DEFAULT_KOMGA_USERNAME, data['serverPassword'] ?? DEFAULT_KOMGA_PASSWORD);
+    await setOptions(stateManager, data['showOnDeck'] ?? DEFAULT_SHOW_ON_DECK, data['orderResultsAlphabetically'] ?? DEFAULT_SORT_RESULTS_ALPHABETICALLY, data['showContinueReading'] ?? DEFAULT_SHOW_CONTINUE_READING);
 }
 exports.setStateData = setStateData;
-function setKomgaServerAddress(stateManager, apiUri) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield stateManager.store('serverURL', apiUri);
-        yield stateManager.store('komgaAPI', createKomgaAPI(apiUri));
-    });
+async function setKomgaServerAddress(stateManager, apiUri) {
+    await stateManager.store('serverURL', apiUri);
+    await stateManager.store('komgaAPI', createKomgaAPI(apiUri));
 }
-function setCredentials(stateManager, username, password) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield stateManager.keychain.store('serverUsername', username);
-        yield stateManager.keychain.store('serverPassword', password);
-        yield stateManager.keychain.store('authorization', createAuthorizationString(username, password));
-    });
+async function setCredentials(stateManager, username, password) {
+    await stateManager.keychain.store('serverUsername', username);
+    await stateManager.keychain.store('serverPassword', password);
+    await stateManager.keychain.store('authorization', createAuthorizationString(username, password));
 }
-function setOptions(stateManager, showOnDeck, orderResultsAlphabetically, showContinueReading) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield stateManager.store('showOnDeck', showOnDeck);
-        yield stateManager.store('orderResultsAlphabetically', orderResultsAlphabetically);
-        yield stateManager.store('showContinueReading', showContinueReading);
-    });
+async function setOptions(stateManager, showOnDeck, orderResultsAlphabetically, showContinueReading) {
+    await stateManager.store('showOnDeck', showOnDeck);
+    await stateManager.store('orderResultsAlphabetically', orderResultsAlphabetically);
+    await stateManager.store('showContinueReading', showContinueReading);
 }
 function createAuthorizationString(username, password) {
     return 'Basic ' + Buffer.from(username + ':' + password, 'binary').toString('base64');
@@ -2731,15 +2698,6 @@ exports.parseLangCode = parseLangCode;
 
 },{}],67:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Paperback = exports.KomgaRequestInterceptor = exports.capitalize = exports.parseMangaStatus = exports.PaperbackInfo = void 0;
 const types_1 = require("@paperback/types");
@@ -2759,7 +2717,7 @@ const Common_1 = require("./Common");
 //  - getTags() which is called on the homepage
 //  - search method which is called even if the user search in an other source
 exports.PaperbackInfo = {
-    version: '1.3',
+    version: '1.3.1',
     name: 'Paperback',
     icon: 'icon.png',
     author: 'Lemon | Faizan Durrani',
@@ -2796,36 +2754,34 @@ class KomgaRequestInterceptor {
     constructor(stateManager) {
         this.stateManager = stateManager;
     }
-    interceptResponse(response) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return response;
-        });
+    async interceptResponse(response) {
+        return response;
     }
-    interceptRequest(request) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // Paper's Note: This hack no longer works on iOS 17
-            // ORIGINAL NOTE: Doing it like this will make downloads work tried every other method did not work, if there is a better method make edit it and make pull request
-            // if (request.url.includes('intercept*')) {
-            //     const url = request?.url?.split('*').pop() ?? ''
-            //     request.headers = {
-            //         'authorization': await getAuthorizationString(this.stateManager)
-            //     }
-            //     request.url = url
-            //     return request
-            // }
-            if (request.headers === undefined) {
-                request.headers = {};
-            }
-            // We mustn't call this.getAuthorizationString() for the stateful submission request.
-            // This procedure indeed catchs the request used to check user credentials
-            // which can happen before an authorizationString is saved,
-            // raising an error in getAuthorizationString when we check for its existence
-            // Thus we only inject an authorizationString if none are defined in the request
-            if (request.headers.authorization === undefined) {
-                request.headers.authorization = yield (0, Common_1.getAuthorizationString)(this.stateManager);
-            }
-            return request;
-        });
+    async interceptRequest(request) {
+        // Paper's Note: This hack no longer works on iOS 17
+        // ORIGINAL NOTE: Doing it like this will make downloads work tried every other method did not work, if there is a better method make edit it and make pull request
+        // if (request.url.includes('intercept*')) {
+        //     const url = request?.url?.split('*').pop() ?? ''
+        //     request.headers = {
+        //         'authorization': await getAuthorizationString(this.stateManager)
+        //     }
+        //     request.url = url
+        //     return request
+        // }
+        const headers = request.headers ?? {};
+        // We mustn't call this.getAuthorizationString() for the stateful submission request.
+        // This procedure indeed catchs the request used to check user credentials
+        // which can happen before an authorizationString is saved,
+        // raising an error in getAuthorizationString when we check for its existence
+        // Thus we only inject an authorizationString if none are defined in the request
+        if (headers.authorization === undefined) {
+            headers.authorization = await (0, Common_1.getAuthorizationString)(this.stateManager);
+        }
+        // Paper's Note:
+        //  Apparently setting a property on the `headers` object doesnt map over to swift
+        //  we NEED to reset the base object for swift to realise its been changed
+        request.headers = headers;
+        return request;
     }
 }
 exports.KomgaRequestInterceptor = KomgaRequestInterceptor;
@@ -2839,494 +2795,455 @@ class Paperback extends types_1.Source {
             interceptor: new KomgaRequestInterceptor(this.stateManager)
         });
     }
-    getSourceMenu() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return App.createDUISection({
-                id: 'main',
-                header: 'Source Settings',
-                isHidden: false,
-                rows: () => __awaiter(this, void 0, void 0, function* () {
-                    return [
-                        (0, Settings_1.serverSettingsMenu)(this.stateManager),
-                        (0, Settings_1.testServerSettingsMenu)(this.stateManager, this.requestManager),
-                        (0, Settings_1.resetSettingsButton)(this.stateManager),
-                    ];
-                })
-            });
+    async getSourceMenu() {
+        return App.createDUISection({
+            id: 'main',
+            header: 'Source Settings',
+            isHidden: false,
+            rows: async () => [
+                (0, Settings_1.serverSettingsMenu)(this.stateManager),
+                (0, Settings_1.testServerSettingsMenu)(this.stateManager, this.requestManager),
+                (0, Settings_1.resetSettingsButton)(this.stateManager),
+            ]
         });
     }
-    getTags() {
-        var _a, _b, _c, _d;
-        return __awaiter(this, void 0, void 0, function* () {
-            // This function is called on the homepage and should not throw if the server is unavailable
-            // We define four types of tags:
-            // - `genre`
-            // - `tag`
-            // - `collection`
-            // - `library`
-            // To be able to make the difference between theses types, we append `genre-` or `tag-` at the beginning of the tag id
-            let genresResponse, tagsResponse, collectionResponse, libraryResponse;
-            // We try to make the requests. If this fail, we return a placeholder tags list to inform the user and prevent the function from throwing an error
-            try {
-                const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-                const genresRequest = App.createRequest({
-                    url: `${komgaAPI}/genres`,
-                    method: 'GET'
-                });
-                genresResponse = yield this.requestManager.schedule(genresRequest, 1);
-                const tagsRequest = App.createRequest({
-                    url: `${komgaAPI}/tags/series`,
-                    method: 'GET'
-                });
-                tagsResponse = yield this.requestManager.schedule(tagsRequest, 1);
-                const collectionRequest = App.createRequest({
-                    url: `${komgaAPI}/collections`,
-                    method: 'GET'
-                });
-                collectionResponse = yield this.requestManager.schedule(collectionRequest, 1);
-                const libraryRequest = App.createRequest({
-                    url: `${komgaAPI}/libraries`,
-                    method: 'GET'
-                });
-                libraryResponse = yield this.requestManager.schedule(libraryRequest, 1);
-            }
-            catch (error) {
-                console.log(`getTags failed with error: ${error}`);
-                return [
-                    App.createTagSection({ id: '-1', label: 'Server unavailable', tags: [] }),
-                ];
-            }
-            // The following part of the function should throw if there is an error and thus is not in the try/catch block
-            const genresResult = typeof genresResponse.data === 'string'
-                ? JSON.parse(genresResponse.data)
-                : genresResponse.data;
-            const tagsResult = typeof tagsResponse.data === 'string'
-                ? JSON.parse(tagsResponse.data)
-                : tagsResponse.data;
-            const collectionResult = typeof collectionResponse.data === 'string'
-                ? JSON.parse(collectionResponse.data)
-                : collectionResponse.data;
-            const libraryResult = typeof libraryResponse.data === 'string'
-                ? JSON.parse(libraryResponse.data)
-                : libraryResponse.data;
-            const tagSections = [
-                App.createTagSection({ id: '0', label: 'genres', tags: [] }),
-                App.createTagSection({ id: '1', label: 'tags', tags: [] }),
-                App.createTagSection({ id: '2', label: 'collections', tags: [] }),
-                App.createTagSection({ id: '3', label: 'libraries', tags: [] }),
+    async getTags() {
+        // This function is called on the homepage and should not throw if the server is unavailable
+        // We define four types of tags:
+        // - `genre`
+        // - `tag`
+        // - `collection`
+        // - `library`
+        // To be able to make the difference between theses types, we append `genre-` or `tag-` at the beginning of the tag id
+        let genresResponse, tagsResponse, collectionResponse, libraryResponse;
+        // We try to make the requests. If this fail, we return a placeholder tags list to inform the user and prevent the function from throwing an error
+        try {
+            const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+            const genresRequest = App.createRequest({
+                url: `${komgaAPI}/genres`,
+                method: 'GET'
+            });
+            genresResponse = await this.requestManager.schedule(genresRequest, 1);
+            const tagsRequest = App.createRequest({
+                url: `${komgaAPI}/tags/series`,
+                method: 'GET'
+            });
+            tagsResponse = await this.requestManager.schedule(tagsRequest, 1);
+            const collectionRequest = App.createRequest({
+                url: `${komgaAPI}/collections`,
+                method: 'GET'
+            });
+            collectionResponse = await this.requestManager.schedule(collectionRequest, 1);
+            const libraryRequest = App.createRequest({
+                url: `${komgaAPI}/libraries`,
+                method: 'GET'
+            });
+            libraryResponse = await this.requestManager.schedule(libraryRequest, 1);
+        }
+        catch (error) {
+            console.log(`getTags failed with error: ${error}`);
+            return [
+                App.createTagSection({ id: '-1', label: 'Server unavailable', tags: [] }),
             ];
-            // For each tag, we append a type identifier to its id and capitalize its label
-            tagSections[0].tags = genresResult.map((elem) => App.createTag({ id: 'genre-' + elem, label: (0, exports.capitalize)(elem) }));
-            tagSections[1].tags = tagsResult.map((elem) => App.createTag({ id: 'tag-' + elem, label: (0, exports.capitalize)(elem) }));
-            tagSections[2].tags = (_b = (_a = collectionResult.content) === null || _a === void 0 ? void 0 : _a.map((elem) => App.createTag({ id: 'collection-' + elem.id, label: (0, exports.capitalize)(elem.name) }))) !== null && _b !== void 0 ? _b : [];
-            tagSections[3].tags = libraryResult.map((elem) => App.createTag({ id: 'library-' + elem.id, label: (0, exports.capitalize)(elem.name) }));
-            if (((_d = (_c = collectionResult.content) === null || _c === void 0 ? void 0 : _c.length) !== null && _d !== void 0 ? _d : 0) <= 1) {
-                tagSections.splice(2, 1);
+        }
+        // The following part of the function should throw if there is an error and thus is not in the try/catch block
+        const genresResult = typeof genresResponse.data === 'string'
+            ? JSON.parse(genresResponse.data)
+            : genresResponse.data;
+        const tagsResult = typeof tagsResponse.data === 'string'
+            ? JSON.parse(tagsResponse.data)
+            : tagsResponse.data;
+        const collectionResult = typeof collectionResponse.data === 'string'
+            ? JSON.parse(collectionResponse.data)
+            : collectionResponse.data;
+        const libraryResult = typeof libraryResponse.data === 'string'
+            ? JSON.parse(libraryResponse.data)
+            : libraryResponse.data;
+        const tagSections = [
+            App.createTagSection({ id: '0', label: 'genres', tags: [] }),
+            App.createTagSection({ id: '1', label: 'tags', tags: [] }),
+            App.createTagSection({ id: '2', label: 'collections', tags: [] }),
+            App.createTagSection({ id: '3', label: 'libraries', tags: [] }),
+        ];
+        // For each tag, we append a type identifier to its id and capitalize its label
+        tagSections[0].tags = genresResult.map((elem) => App.createTag({ id: 'genre-' + elem, label: (0, exports.capitalize)(elem) }));
+        tagSections[1].tags = tagsResult.map((elem) => App.createTag({ id: 'tag-' + elem, label: (0, exports.capitalize)(elem) }));
+        tagSections[2].tags = collectionResult.content?.map((elem) => App.createTag({ id: 'collection-' + elem.id, label: (0, exports.capitalize)(elem.name) })) ?? [];
+        tagSections[3].tags = libraryResult.map((elem) => App.createTag({ id: 'library-' + elem.id, label: (0, exports.capitalize)(elem.name) }));
+        if ((collectionResult.content?.length ?? 0) <= 1) {
+            tagSections.splice(2, 1);
+        }
+        return tagSections;
+    }
+    async getMangaDetails(mangaId) {
+        /*
+                In Komga a manga is represented by a `serie`
+                */
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        const request = App.createRequest({
+            url: `${komgaAPI}/series/${mangaId}`,
+            method: 'GET'
+        });
+        const response = await this.requestManager.schedule(request, 1);
+        const result = typeof response.data === 'string'
+            ? JSON.parse(response.data)
+            : response.data;
+        const metadata = result.metadata;
+        const booksMetadata = result.booksMetadata;
+        const tagSections = [
+            App.createTagSection({ id: '0', label: 'genres', tags: [] }),
+            App.createTagSection({ id: '1', label: 'tags', tags: [] }),
+        ];
+        // For each tag, we append a type identifier to its id and capitalize its label
+        tagSections[0].tags = metadata.genres.map((elem) => App.createTag({ id: 'genre-' + elem, label: (0, exports.capitalize)(elem) }));
+        tagSections[1].tags = metadata.tags.map((elem) => App.createTag({ id: 'tag-' + elem, label: (0, exports.capitalize)(elem) }));
+        const authors = [];
+        const artists = [];
+        // Additional roles: colorist, inker, letterer, cover, editor
+        for (const entry of booksMetadata.authors) {
+            if (entry.role === 'writer') {
+                authors.push(entry.name);
             }
-            return tagSections;
+            if (entry.role === 'penciller') {
+                artists.push(entry.name);
+            }
+        }
+        return App.createSourceManga({
+            id: mangaId,
+            mangaInfo: App.createMangaInfo({
+                titles: [metadata.title],
+                image: `${komgaAPI}/series/${mangaId}/thumbnail`,
+                status: (0, exports.parseMangaStatus)(metadata.status),
+                artist: artists.join(', '),
+                author: authors.join(', '),
+                desc: metadata.summary ? metadata.summary : booksMetadata.summary,
+                tags: tagSections,
+            })
         });
     }
-    getMangaDetails(mangaId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            /*
-                    In Komga a manga is represented by a `serie`
-                    */
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            const request = App.createRequest({
-                url: `${komgaAPI}/series/${mangaId}`,
-                method: 'GET'
-            });
-            const response = yield this.requestManager.schedule(request, 1);
-            const result = typeof response.data === 'string'
-                ? JSON.parse(response.data)
-                : response.data;
-            const metadata = result.metadata;
-            const booksMetadata = result.booksMetadata;
-            const tagSections = [
-                App.createTagSection({ id: '0', label: 'genres', tags: [] }),
-                App.createTagSection({ id: '1', label: 'tags', tags: [] }),
-            ];
-            // For each tag, we append a type identifier to its id and capitalize its label
-            tagSections[0].tags = metadata.genres.map((elem) => App.createTag({ id: 'genre-' + elem, label: (0, exports.capitalize)(elem) }));
-            tagSections[1].tags = metadata.tags.map((elem) => App.createTag({ id: 'tag-' + elem, label: (0, exports.capitalize)(elem) }));
-            const authors = [];
-            const artists = [];
-            // Additional roles: colorist, inker, letterer, cover, editor
-            for (const entry of booksMetadata.authors) {
-                if (entry.role === 'writer') {
-                    authors.push(entry.name);
-                }
-                if (entry.role === 'penciller') {
-                    artists.push(entry.name);
-                }
+    async getChapters(mangaId) {
+        /*
+                In Komga a chapter is a `book`
+                */
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        const booksRequest = App.createRequest({
+            url: `${komgaAPI}/series/${mangaId}/books`,
+            param: '?unpaged=true&media_status=READY&deleted=false',
+            method: 'GET'
+        });
+        const booksResponse = await this.requestManager.schedule(booksRequest, 1);
+        const booksResult = typeof booksResponse.data === 'string'
+            ? JSON.parse(booksResponse.data)
+            : booksResponse.data;
+        const chapters = [];
+        // Chapters language is only available on the serie page
+        const serieRequest = App.createRequest({
+            url: `${komgaAPI}/series/${mangaId}`,
+            method: 'GET'
+        });
+        const serieResponse = await this.requestManager.schedule(serieRequest, 1);
+        const serieResult = typeof serieResponse.data === 'string'
+            ? JSON.parse(serieResponse.data)
+            : serieResponse.data;
+        const languageCode = (0, Languages_1.parseLangCode)(serieResult.metadata.language);
+        for (const book of booksResult.content ?? []) {
+            chapters.push(App.createChapter({
+                id: book.id,
+                chapNum: parseFloat(book.metadata.number),
+                langCode: languageCode,
+                name: `${book.metadata.title} (${book.size})`,
+                time: new Date(book.fileLastModified),
+                // @ts-ignore
+                sortingIndex: book.metadata.numberSort
+            }));
+        }
+        return chapters;
+    }
+    async getChapterDetails(mangaId, chapterId) {
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        const request = App.createRequest({
+            url: `${komgaAPI}/books/${chapterId}/pages`,
+            method: 'GET'
+        });
+        const data = await this.requestManager.schedule(request, 1);
+        const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+        const pages = [];
+        for (const page of result) {
+            if (SUPPORTED_IMAGE_TYPES.includes(page.mediaType)) {
+                pages.push(`${komgaAPI}/books/${chapterId}/pages/${page.number}`);
             }
-            return App.createSourceManga({
-                id: mangaId,
-                mangaInfo: App.createMangaInfo({
-                    titles: [metadata.title],
-                    image: `${komgaAPI}/series/${mangaId}/thumbnail`,
-                    status: (0, exports.parseMangaStatus)(metadata.status),
-                    artist: artists.join(', '),
-                    author: authors.join(', '),
-                    desc: metadata.summary ? metadata.summary : booksMetadata.summary,
-                    tags: tagSections,
-                })
-            });
+            else {
+                pages.push(`${komgaAPI}/books/${chapterId}/pages/${page.number}?convert=png`);
+            }
+        }
+        // Determine the preferred reading direction which is only available in the serie metadata
+        const serieRequest = App.createRequest({
+            url: `${komgaAPI}/series/${mangaId}`,
+            method: 'GET'
+        });
+        const serieResponse = await this.requestManager.schedule(serieRequest, 1);
+        const serieResult = typeof serieResponse.data === 'string'
+            ? JSON.parse(serieResponse.data)
+            : serieResponse.data;
+        let longStrip = false;
+        if (['VERTICAL', 'WEBTOON'].includes(serieResult.metadata.readingDirection)) {
+            longStrip = true;
+        }
+        return App.createChapterDetails({
+            id: chapterId,
+            mangaId: mangaId,
+            pages: pages
         });
     }
-    getChapters(mangaId) {
-        var _a;
-        return __awaiter(this, void 0, void 0, function* () {
-            /*
-                    In Komga a chapter is a `book`
-                    */
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            const booksRequest = App.createRequest({
-                url: `${komgaAPI}/series/${mangaId}/books`,
-                param: '?unpaged=true&media_status=READY&deleted=false',
-                method: 'GET'
-            });
-            const booksResponse = yield this.requestManager.schedule(booksRequest, 1);
-            const booksResult = typeof booksResponse.data === 'string'
-                ? JSON.parse(booksResponse.data)
-                : booksResponse.data;
-            const chapters = [];
-            // Chapters language is only available on the serie page
-            const serieRequest = App.createRequest({
-                url: `${komgaAPI}/series/${mangaId}`,
-                method: 'GET'
-            });
-            const serieResponse = yield this.requestManager.schedule(serieRequest, 1);
-            const serieResult = typeof serieResponse.data === 'string'
-                ? JSON.parse(serieResponse.data)
-                : serieResponse.data;
-            const languageCode = (0, Languages_1.parseLangCode)(serieResult.metadata.language);
-            for (const book of (_a = booksResult.content) !== null && _a !== void 0 ? _a : []) {
-                chapters.push(App.createChapter({
-                    id: book.id,
-                    chapNum: parseFloat(book.metadata.number),
-                    langCode: languageCode,
-                    name: `${book.metadata.title} (${book.size})`,
-                    time: new Date(book.fileLastModified),
-                    // @ts-ignore
-                    sortingIndex: book.metadata.numberSort
-                }));
-            }
-            return chapters;
-        });
+    async getSearchResults(searchQuery, metadata) {
+        // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
+        return (0, Common_1.searchRequest)(searchQuery, metadata, this.requestManager, this.stateManager, PAGE_SIZE);
     }
-    getChapterDetails(mangaId, chapterId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            const request = App.createRequest({
-                url: `${komgaAPI}/books/${chapterId}/pages`,
-                method: 'GET'
+    async getHomePageSections(sectionCallback) {
+        // This function is called on the homepage and should not throw if the server is unavailable
+        // We won't use `await this.getKomgaAPI()` as we do not want to throw an error on
+        // the homepage when server settings are not set
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        const { showOnDeck, showContinueReading } = await (0, Common_1.getOptions)(this.stateManager);
+        if (komgaAPI === null) {
+            console.log('searchRequest failed because server settings are unset');
+            const section = App.createHomeSection({
+                id: 'unset',
+                title: 'Go to source settings to set your Komga server credentials.',
+                items: (0, Common_1.getServerUnavailableMangaTiles)(),
+                containsMoreItems: false,
+                type: 'singleRowNormal'
             });
-            const data = yield this.requestManager.schedule(request, 1);
-            const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-            const pages = [];
-            for (const page of result) {
-                if (SUPPORTED_IMAGE_TYPES.includes(page.mediaType)) {
-                    pages.push(`${komgaAPI}/books/${chapterId}/pages/${page.number}`);
-                }
-                else {
-                    pages.push(`${komgaAPI}/books/${chapterId}/pages/${page.number}?convert=png`);
-                }
-            }
-            // Determine the preferred reading direction which is only available in the serie metadata
-            const serieRequest = App.createRequest({
-                url: `${komgaAPI}/series/${mangaId}`,
-                method: 'GET'
-            });
-            const serieResponse = yield this.requestManager.schedule(serieRequest, 1);
-            const serieResult = typeof serieResponse.data === 'string'
-                ? JSON.parse(serieResponse.data)
-                : serieResponse.data;
-            let longStrip = false;
-            if (['VERTICAL', 'WEBTOON'].includes(serieResult.metadata.readingDirection)) {
-                longStrip = true;
-            }
-            return App.createChapterDetails({
-                id: chapterId,
-                mangaId: mangaId,
-                pages: pages
-            });
-        });
-    }
-    getSearchResults(searchQuery, metadata) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
-            return (0, Common_1.searchRequest)(searchQuery, metadata, this.requestManager, this.stateManager, PAGE_SIZE);
-        });
-    }
-    getHomePageSections(sectionCallback) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // This function is called on the homepage and should not throw if the server is unavailable
-            // We won't use `await this.getKomgaAPI()` as we do not want to throw an error on
-            // the homepage when server settings are not set
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            const { showOnDeck, showContinueReading } = yield (0, Common_1.getOptions)(this.stateManager);
-            if (komgaAPI === null) {
-                console.log('searchRequest failed because server settings are unset');
-                const section = App.createHomeSection({
-                    id: 'unset',
-                    title: 'Go to source settings to set your Komga server credentials.',
-                    items: (0, Common_1.getServerUnavailableMangaTiles)(),
-                    containsMoreItems: false,
-                    type: 'singleRowNormal'
-                });
-                sectionCallback(section);
-                return;
-            }
-            // The source define two homepage sections: new and latest
-            const sections = [];
-            if (showOnDeck) {
-                sections.push(App.createHomeSection({
-                    id: 'ondeck',
-                    title: 'On Deck',
-                    containsMoreItems: false,
-                    type: 'singleRowNormal'
-                }));
-            }
-            if (showContinueReading) {
-                sections.push(App.createHomeSection({
-                    id: 'continue',
-                    title: 'Continue Reading',
-                    containsMoreItems: false,
-                    type: 'singleRowNormal'
-                }));
-            }
+            sectionCallback(section);
+            return;
+        }
+        // The source define two homepage sections: new and latest
+        const sections = [];
+        if (showOnDeck) {
             sections.push(App.createHomeSection({
-                id: 'new',
-                title: 'Recently added series',
-                containsMoreItems: true,
+                id: 'ondeck',
+                title: 'On Deck',
+                containsMoreItems: false,
                 type: 'singleRowNormal'
             }));
+        }
+        if (showContinueReading) {
             sections.push(App.createHomeSection({
-                id: 'updated',
-                title: 'Recently updated series',
-                containsMoreItems: true,
+                id: 'continue',
+                title: 'Continue Reading',
+                containsMoreItems: false,
                 type: 'singleRowNormal'
             }));
-            const promises = [];
-            for (const section of sections) {
-                // Let the app load empty tagSections
-                sectionCallback(section);
-                let apiPath, thumbPath, params, idProp;
-                switch (section.id) {
-                    case 'ondeck':
-                        apiPath = `${komgaAPI}/books/${section.id}`;
-                        thumbPath = `${komgaAPI}/books`;
-                        params = '?page=0&size=20&deleted=false';
-                        idProp = 'seriesId';
-                        break;
-                    case 'continue':
-                        apiPath = `${komgaAPI}/books`;
-                        thumbPath = `${komgaAPI}/books`;
-                        params = '?sort=readProgress.readDate,desc&read_status=IN_PROGRESS&page=0&size=20&deleted=false';
-                        idProp = 'seriesId';
-                        break;
-                    default:
-                        apiPath = `${komgaAPI}/series/${section.id}`;
-                        thumbPath = `${komgaAPI}/series`;
-                        params = '?page=0&size=20&deleted=false';
-                        idProp = 'id';
-                        break;
-                }
-                const request = App.createRequest({
-                    url: apiPath,
-                    param: params,
-                    method: 'GET'
-                });
-                // Get the section data
-                promises.push((() => __awaiter(this, void 0, void 0, function* () {
-                    const data = yield this.requestManager.schedule(request, 1);
-                    const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-                    const tiles = [];
-                    if (!result.content) {
-                        return;
-                    }
-                    for (const serie of result.content) {
-                        tiles.push(App.createPartialSourceManga({
-                            title: serie.metadata.title,
-                            image: `${thumbPath}/${serie.id}/thumbnail`,
-                            mangaId: serie[idProp],
-                            subtitle: undefined
-                        }));
-                    }
-                    section.items = tiles;
-                    sectionCallback(section);
-                }))());
+        }
+        sections.push(App.createHomeSection({
+            id: 'new',
+            title: 'Recently added series',
+            containsMoreItems: true,
+            type: 'singleRowNormal'
+        }));
+        sections.push(App.createHomeSection({
+            id: 'updated',
+            title: 'Recently updated series',
+            containsMoreItems: true,
+            type: 'singleRowNormal'
+        }));
+        const promises = [];
+        for (const section of sections) {
+            // Let the app load empty tagSections
+            sectionCallback(section);
+            let apiPath, thumbPath, params, idProp;
+            switch (section.id) {
+                case 'ondeck':
+                    apiPath = `${komgaAPI}/books/${section.id}`;
+                    thumbPath = `${komgaAPI}/books`;
+                    params = '?page=0&size=20&deleted=false';
+                    idProp = 'seriesId';
+                    break;
+                case 'continue':
+                    apiPath = `${komgaAPI}/books`;
+                    thumbPath = `${komgaAPI}/books`;
+                    params = '?sort=readProgress.readDate,desc&read_status=IN_PROGRESS&page=0&size=20&deleted=false';
+                    idProp = 'seriesId';
+                    break;
+                default:
+                    apiPath = `${komgaAPI}/series/${section.id}`;
+                    thumbPath = `${komgaAPI}/series`;
+                    params = '?page=0&size=20&deleted=false';
+                    idProp = 'id';
+                    break;
             }
-            // Make sure the function completes
-            yield Promise.all(promises);
+            const request = App.createRequest({
+                url: apiPath,
+                param: params,
+                method: 'GET'
+            });
+            // Get the section data
+            promises.push((async () => {
+                const data = await this.requestManager.schedule(request, 1);
+                const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+                const tiles = [];
+                if (!result.content) {
+                    return;
+                }
+                for (const serie of result.content) {
+                    tiles.push(App.createPartialSourceManga({
+                        title: serie.metadata.title,
+                        image: `${thumbPath}/${serie.id}/thumbnail`,
+                        mangaId: serie[idProp],
+                        subtitle: undefined
+                    }));
+                }
+                section.items = tiles;
+                sectionCallback(section);
+            })());
+        }
+        // Make sure the function completes
+        await Promise.all(promises);
+    }
+    async getViewMoreItems(homepageSectionId, metadata) {
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        const page = metadata?.page ?? 0;
+        const request = App.createRequest({
+            url: `${komgaAPI}/series/${homepageSectionId}`,
+            param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
+            method: 'GET'
+        });
+        const data = await this.requestManager.schedule(request, 1);
+        const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+        const tiles = [];
+        for (const serie of result.content ?? []) {
+            tiles.push(App.createPartialSourceManga({
+                title: serie.metadata.title,
+                image: `${komgaAPI}/series/${serie.id}/thumbnail`,
+                mangaId: serie.id,
+                subtitle: undefined
+            }));
+        }
+        // If no series were returned we are on the last page
+        metadata = tiles.length === 0 ? undefined : { page: page + 1 };
+        return App.createPagedResults({
+            results: tiles,
+            metadata: metadata
         });
     }
-    getViewMoreItems(homepageSectionId, metadata) {
-        var _a, _b;
-        return __awaiter(this, void 0, void 0, function* () {
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            const page = (_a = metadata === null || metadata === void 0 ? void 0 : metadata.page) !== null && _a !== void 0 ? _a : 0;
+    async filterUpdatedManga(mangaUpdatesFoundCallback, time, ids) {
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        // We make requests of PAGE_SIZE titles to `series/updated/` until we got every titles
+        // or we got a title which `lastModified` metadata is older than `time`
+        let page = 0;
+        const foundIds = [];
+        let loadMore = true;
+        while (loadMore) {
             const request = App.createRequest({
-                url: `${komgaAPI}/series/${homepageSectionId}`,
+                url: `${komgaAPI}/series/updated`,
                 param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
                 method: 'GET'
             });
-            const data = yield this.requestManager.schedule(request, 1);
+            const data = await this.requestManager.schedule(request, 1);
             const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-            const tiles = [];
-            for (const serie of (_b = result.content) !== null && _b !== void 0 ? _b : []) {
-                tiles.push(App.createPartialSourceManga({
-                    title: serie.metadata.title,
-                    image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                    mangaId: serie.id,
-                    subtitle: undefined
-                }));
-            }
-            // If no series were returned we are on the last page
-            metadata = tiles.length === 0 ? undefined : { page: page + 1 };
-            return App.createPagedResults({
-                results: tiles,
-                metadata: metadata
-            });
-        });
-    }
-    filterUpdatedManga(mangaUpdatesFoundCallback, time, ids) {
-        var _a, _b;
-        return __awaiter(this, void 0, void 0, function* () {
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            // We make requests of PAGE_SIZE titles to `series/updated/` until we got every titles
-            // or we got a title which `lastModified` metadata is older than `time`
-            let page = 0;
-            const foundIds = [];
-            let loadMore = true;
-            while (loadMore) {
-                const request = App.createRequest({
-                    url: `${komgaAPI}/series/updated`,
-                    param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
-                    method: 'GET'
-                });
-                const data = yield this.requestManager.schedule(request, 1);
-                const result = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-                for (const serie of (_a = result.content) !== null && _a !== void 0 ? _a : []) {
-                    const serieUpdated = new Date(serie.metadata.lastModified);
-                    if (serieUpdated >= time) {
-                        if (ids.includes(serie.id)) {
-                            foundIds.push(serie.id);
-                        }
+            for (const serie of result.content ?? []) {
+                const serieUpdated = new Date(serie.metadata.lastModified);
+                if (serieUpdated >= time) {
+                    if (ids.includes(serie.id)) {
+                        foundIds.push(serie.id);
                     }
-                    else {
-                        loadMore = false;
-                        break;
-                    }
-                }
-                // If no series were returned we are on the last page
-                if (((_b = result.content) === null || _b === void 0 ? void 0 : _b.length) === 0) {
-                    loadMore = false;
-                }
-                page = page + 1;
-                if (foundIds.length > 0) {
-                    mangaUpdatesFoundCallback(App.createMangaUpdates({
-                        ids: foundIds
-                    }));
-                }
-            }
-        });
-    }
-    getMangaProgressManagementForm(mangaId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return App.createDUIForm({
-                sections: () => __awaiter(this, void 0, void 0, function* () {
-                    return [
-                        App.createDUISection({
-                            id: 'mangaId',
-                            rows: () => __awaiter(this, void 0, void 0, function* () {
-                                return [
-                                    App.createDUILabel({
-                                        id: 'id',
-                                        label: 'Manga id: ' + mangaId,
-                                        value: undefined
-                                    }),
-                                    App.createDUILabel({
-                                        id: 'info',
-                                        label: 'The app will sync read chapters to the Komga server',
-                                        value: undefined
-                                    })
-                                ];
-                            }),
-                            isHidden: false
-                        })
-                    ];
-                }),
-                onSubmit: () => {
-                    return Promise.resolve();
-                },
-            });
-        });
-    }
-    processChapterReadActionQueue(actionQueue) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const chapterReadActions = yield actionQueue.queuedChapterReadActions();
-            const komgaAPI = yield (0, Common_1.getKomgaAPI)(this.stateManager);
-            for (const readAction of chapterReadActions) {
-                if (readAction.sourceId != 'Paperback') {
-                    console.log(`Manga ${readAction.mangaId} from source ${readAction.sourceId} can not be used as it does not come from Komga. Discarding`);
-                    yield actionQueue.discardChapterReadAction(readAction);
                 }
                 else {
-                    try {
-                        // The app only support completed read status so the last page read is not important and set to 1
-                        const request = App.createRequest({
-                            url: `${komgaAPI}/books/${readAction.sourceChapterId}/read-progress`,
-                            method: 'PATCH',
-                            headers: { 'content-type': 'application/json' },
-                            data: {
-                                'page': 1,
-                                'completed': true
-                            }
-                        });
-                        const response = yield this.requestManager.schedule(request, 1);
-                        if (response.status < 400) {
-                            console.log(`${readAction.sourceChapterId} chapter marked as read`);
-                            yield actionQueue.discardChapterReadAction(readAction);
-                        }
-                        else {
-                            console.log(`${readAction.sourceChapterId} chapter needs to be retried`);
-                            console.log(`${response.status} --- ${response.data}`);
-                            yield actionQueue.retryChapterReadAction(readAction);
-                        }
-                    }
-                    catch (error) {
-                        console.log(`Tracker action for manga id ${readAction.mangaId} failed with error:`);
-                        console.log(error);
-                        yield actionQueue.retryChapterReadAction(readAction);
-                    }
+                    loadMore = false;
+                    break;
                 }
             }
+            // If no series were returned we are on the last page
+            if (result.content?.length === 0) {
+                loadMore = false;
+            }
+            page = page + 1;
+            if (foundIds.length > 0) {
+                mangaUpdatesFoundCallback(App.createMangaUpdates({
+                    ids: foundIds
+                }));
+            }
+        }
+    }
+    async getMangaProgressManagementForm(mangaId) {
+        return App.createDUIForm({
+            sections: async () => {
+                return [
+                    App.createDUISection({
+                        id: 'mangaId',
+                        rows: async () => [
+                            App.createDUILabel({
+                                id: 'id',
+                                label: 'Manga id: ' + mangaId,
+                                value: undefined
+                            }),
+                            App.createDUILabel({
+                                id: 'info',
+                                label: 'The app will sync read chapters to the Komga server',
+                                value: undefined
+                            })
+                        ],
+                        isHidden: false
+                    })
+                ];
+            },
+            onSubmit: () => {
+                return Promise.resolve();
+            },
         });
+    }
+    async processChapterReadActionQueue(actionQueue) {
+        const chapterReadActions = await actionQueue.queuedChapterReadActions();
+        const komgaAPI = await (0, Common_1.getKomgaAPI)(this.stateManager);
+        for (const readAction of chapterReadActions) {
+            if (readAction.sourceId != 'Paperback') {
+                console.log(`Manga ${readAction.mangaId} from source ${readAction.sourceId} can not be used as it does not come from Komga. Discarding`);
+                await actionQueue.discardChapterReadAction(readAction);
+            }
+            else {
+                try {
+                    // The app only support completed read status so the last page read is not important and set to 1
+                    const request = App.createRequest({
+                        url: `${komgaAPI}/books/${readAction.sourceChapterId}/read-progress`,
+                        method: 'PATCH',
+                        headers: { 'content-type': 'application/json' },
+                        data: {
+                            'page': 1,
+                            'completed': true
+                        }
+                    });
+                    const response = await this.requestManager.schedule(request, 1);
+                    if (response.status < 400) {
+                        console.log(`${readAction.sourceChapterId} chapter marked as read`);
+                        await actionQueue.discardChapterReadAction(readAction);
+                    }
+                    else {
+                        console.log(`${readAction.sourceChapterId} chapter needs to be retried`);
+                        console.log(`${response.status} --- ${response.data}`);
+                        await actionQueue.retryChapterReadAction(readAction);
+                    }
+                }
+                catch (error) {
+                    console.log(`Tracker action for manga id ${readAction.mangaId} failed with error:`);
+                    console.log(error);
+                    await actionQueue.retryChapterReadAction(readAction);
+                }
+            }
+        }
     }
 }
 exports.Paperback = Paperback;
 
 },{"./Common":65,"./Languages":66,"./Settings":68,"@paperback/types":61}],68:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetSettingsButton = exports.testServerSettingsMenu = exports.serverSettingsMenu = exports.testServerSettings = void 0;
 const Common_1 = require("./Common");
 /* Helper functions */
-const testServerSettings = (stateManager, requestManager) => __awaiter(void 0, void 0, void 0, function* () {
+const testServerSettings = async (stateManager, requestManager) => {
     // Try to establish a connection with the server. Return an human readable string containing the test result
-    const komgaAPI = yield (0, Common_1.getKomgaAPI)(stateManager);
-    const authorization = yield (0, Common_1.getAuthorizationString)(stateManager);
+    const komgaAPI = await (0, Common_1.getKomgaAPI)(stateManager);
+    const authorization = await (0, Common_1.getAuthorizationString)(stateManager);
     // We check credentials are set in server settings
     if (komgaAPI === null || authorization === null) {
         return 'Impossible: Unset credentials in server settings';
@@ -3340,7 +3257,7 @@ const testServerSettings = (stateManager, requestManager) => __awaiter(void 0, v
     });
     let responseStatus = undefined;
     try {
-        const response = yield requestManager.schedule(request, 1);
+        const response = await requestManager.schedule(request, 1);
         responseStatus = response.status;
     }
     catch (error) {
@@ -3358,7 +3275,7 @@ const testServerSettings = (stateManager, requestManager) => __awaiter(void 0, v
             return `Error ${responseStatus}`;
         }
     }
-});
+};
 exports.testServerSettings = testServerSettings;
 /* UI definition */
 // NOTE: Submitted data won't be tested
@@ -3367,147 +3284,117 @@ const serverSettingsMenu = (stateManager) => {
         id: 'server_settings',
         label: 'Server Settings',
         form: App.createDUIForm({
-            sections: () => __awaiter(void 0, void 0, void 0, function* () {
-                const values = yield (0, Common_1.retrieveStateData)(stateManager);
+            sections: async () => {
+                const values = await (0, Common_1.retrieveStateData)(stateManager);
                 return [
                     App.createDUISection({
                         id: 'information',
                         header: undefined,
                         isHidden: false,
-                        rows: () => __awaiter(void 0, void 0, void 0, function* () {
-                            return [
-                                App.createDUIMultilineLabel({
-                                    label: 'Demo Server',
-                                    value: 'Server URL: https://demo.komga.org\nUsername: demo@komga.org\nPassword: komga-demo\n\nNote: Values are case-sensitive.',
-                                    id: 'description'
-                                }),
-                            ];
-                        })
+                        rows: async () => [
+                            App.createDUIMultilineLabel({
+                                label: 'Demo Server',
+                                value: 'Server URL: https://demo.komga.org\nUsername: demo@komga.org\nPassword: komga-demo\n\nNote: Values are case-sensitive.',
+                                id: 'description'
+                            }),
+                        ]
                     }),
                     App.createDUISection({
                         id: 'serverSettings',
                         header: 'Server Settings',
                         footer: 'Minimal Komga version: v0.100.0',
                         isHidden: false,
-                        rows: () => __awaiter(void 0, void 0, void 0, function* () {
-                            return [
-                                App.createDUIInputField({
-                                    id: 'serverAddress',
-                                    label: 'Server URL',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.serverURL;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.serverURL = newValue;
-                                                console.log('setting ' + newValue);
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                                App.createDUIInputField({
-                                    id: 'serverUsername',
-                                    label: 'Email',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.serverUsername;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.serverUsername = newValue;
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                                App.createDUISecureInputField({
-                                    id: 'serverPassword',
-                                    label: 'Password',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.serverPassword;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.serverPassword = newValue;
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                            ];
-                        })
+                        rows: async () => [
+                            App.createDUIInputField({
+                                id: 'serverAddress',
+                                label: 'Server URL',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.serverURL;
+                                    },
+                                    async set(newValue) {
+                                        values.serverURL = newValue;
+                                        console.log('setting ' + newValue);
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                            App.createDUIInputField({
+                                id: 'serverUsername',
+                                label: 'Email',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.serverUsername;
+                                    },
+                                    async set(newValue) {
+                                        values.serverUsername = newValue;
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                            App.createDUISecureInputField({
+                                id: 'serverPassword',
+                                label: 'Password',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.serverPassword;
+                                    },
+                                    async set(newValue) {
+                                        values.serverPassword = newValue;
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                        ]
                     }),
                     App.createDUISection({
                         id: 'sourceOptions',
                         header: 'Source Options',
                         isHidden: false,
-                        rows: () => __awaiter(void 0, void 0, void 0, function* () {
-                            return [
-                                App.createDUISwitch({
-                                    id: 'showOnDeck',
-                                    label: 'Show On Deck',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.showOnDeck;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.showOnDeck = newValue;
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                                App.createDUISwitch({
-                                    id: 'showContinueReading',
-                                    label: 'Show Continue Reading',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.showContinueReading;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.showContinueReading = newValue;
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                                App.createDUISwitch({
-                                    id: 'orderResultsAlphabetically',
-                                    label: 'Sort results alphabetically',
-                                    value: App.createDUIBinding({
-                                        get() {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                return values.orderResultsAlphabetically;
-                                            });
-                                        },
-                                        set(newValue) {
-                                            return __awaiter(this, void 0, void 0, function* () {
-                                                values.orderResultsAlphabetically = newValue;
-                                                yield (0, Common_1.setStateData)(stateManager, values);
-                                            });
-                                        }
-                                    })
-                                }),
-                            ];
-                        })
+                        rows: async () => [
+                            App.createDUISwitch({
+                                id: 'showOnDeck',
+                                label: 'Show On Deck',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.showOnDeck;
+                                    },
+                                    async set(newValue) {
+                                        values.showOnDeck = newValue;
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                            App.createDUISwitch({
+                                id: 'showContinueReading',
+                                label: 'Show Continue Reading',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.showContinueReading;
+                                    },
+                                    async set(newValue) {
+                                        values.showContinueReading = newValue;
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                            App.createDUISwitch({
+                                id: 'orderResultsAlphabetically',
+                                label: 'Sort results alphabetically',
+                                value: App.createDUIBinding({
+                                    async get() {
+                                        return values.orderResultsAlphabetically;
+                                    },
+                                    async set(newValue) {
+                                        values.orderResultsAlphabetically = newValue;
+                                        await (0, Common_1.setStateData)(stateManager, values);
+                                    }
+                                })
+                            }),
+                        ]
                     }),
                 ];
-            })
+            }
         })
     });
 };
@@ -3517,25 +3404,23 @@ const testServerSettingsMenu = (stateManager, requestManager) => {
         id: 'test_settings',
         label: 'Try settings',
         form: App.createDUIForm({
-            sections: () => __awaiter(void 0, void 0, void 0, function* () {
-                return [
-                    App.createDUISection({
-                        id: 'information',
-                        header: 'Connection to Komga server:',
-                        isHidden: false,
-                        rows: () => __awaiter(void 0, void 0, void 0, function* () {
-                            const value = yield (0, exports.testServerSettings)(stateManager, requestManager);
-                            return [
-                                App.createDUILabel({
-                                    label: value,
-                                    value: '',
-                                    id: 'description'
-                                }),
-                            ];
-                        })
-                    }),
-                ];
-            })
+            sections: async () => [
+                App.createDUISection({
+                    id: 'information',
+                    header: 'Connection to Komga server:',
+                    isHidden: false,
+                    rows: async () => {
+                        const value = await (0, exports.testServerSettings)(stateManager, requestManager);
+                        return [
+                            App.createDUILabel({
+                                label: value,
+                                value: '',
+                                id: 'description'
+                            }),
+                        ];
+                    }
+                }),
+            ]
         })
     });
 };

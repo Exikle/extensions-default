@@ -1,0 +1,20 @@
+export { createClient } from './client.js';
+export type { Auth } from './core/auth.js';
+export type { QuerySerializerOptions } from './core/bodySerializer.js';
+export {
+  formDataBodySerializer,
+  jsonBodySerializer,
+  urlSearchParamsBodySerializer,
+} from './core/bodySerializer.js';
+export type {
+  Client,
+  ClientOptions,
+  Config,
+  CreateClientConfig,
+  Options,
+  OptionsLegacyParser,
+  RequestOptions,
+  RequestResult,
+  TDataShape,
+} from './types.js';
+export { createConfig } from './utils.js';

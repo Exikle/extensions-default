@@ -16,6 +16,10 @@ import {
   type ChapterDetails,
   type ChapterProviding,
   ContentRating,
+  type DiscoverSection,
+  type DiscoverSectionItem,
+  type DiscoverSectionProviding,
+  DiscoverSectionType,
   type Extension,
   Form,
   type MangaProviding,
@@ -25,19 +29,29 @@ import {
   type SearchResultItem,
   type SearchResultsProviding,
   type SettingsFormProviding,
+  type SortingOption,
   type SourceManga,
   type TagSection,
+  type UpdateManager,
 } from '@paperback/types'
 import {
   getBookPages,
   getBooks as getBooksList,
+  getBooksOnDeck,
   getSeriesById as getOneSeries,
   getSeries as getSeriesList,
+  getSeriesNew,
+  getSeriesUpdated,
 } from './sdk/index.js'
 import { client } from './sdk/client.gen.js'
 import { KomgaImageInterceptor } from './interceptors/image_interceptor.js'
-import { Operator } from './utils.js'
-import { getKomgaBaseURL, getKomgaCredentials } from './utils/config.js'
+import { isEqualTo, isFalse, Operator } from './utils.js'
+import {
+  getKomgaBaseURL,
+  getKomgaCredentials,
+  getShowContinueReading,
+  getShowOnDeck,
+} from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
 
 const SUPPORTED_IMAGE_TYPES = [
@@ -60,7 +74,8 @@ type IKomgaExtension = Extension &
   MangaProviding &
   SearchResultsProviding &
   ChapterProviding &
-  SettingsFormProviding
+  SettingsFormProviding &
+  DiscoverSectionProviding
 
 export class KomgaExtension implements IKomgaExtension {
   imageInterceptor = new KomgaImageInterceptor('images')
@@ -71,6 +86,9 @@ export class KomgaExtension implements IKomgaExtension {
       baseUrl: getKomgaBaseURL(),
       auth(auth) {
         const { username, password } = getKomgaCredentials()
+        console.log(JSON.stringify(auth))
+        console.log(username)
+        console.log(password)
 
         if (auth.type == 'http' && auth.scheme == 'basic') {
           return `${username}:${password}`
@@ -102,12 +120,12 @@ export class KomgaExtension implements IKomgaExtension {
     ]
     // For each tag, we append a type identifier to its id and capitalize its label
     tagSections[0].tags = metadata.genres.map((elem: string) => ({
-      id: 'genre-' + elem,
+      id: 'genre-' + encodeURIComponent(elem),
       title: capitalize(elem),
     }))
 
     tagSections[1].tags = metadata.tags.map((elem: string) => ({
-      id: 'tag-' + elem,
+      id: 'tag-' + encodeURIComponent(elem),
       title: capitalize(elem),
     }))
 
@@ -123,12 +141,11 @@ export class KomgaExtension implements IKomgaExtension {
       }
     }
 
+    const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${mangaId}/thumbnail`
     return {
       mangaId: mangaId,
       mangaInfo: {
-        thumbnailUrl: `${
-          client.getConfig().baseUrl
-        }/api/v1/series/${mangaId}/thumbnail`,
+        thumbnailUrl: thumbnailUrl,
         primaryTitle: metadata.title,
         secondaryTitles: [],
         contentRating: ContentRating.EVERYONE,
@@ -217,10 +234,10 @@ export class KomgaExtension implements IKomgaExtension {
 
     const tiles: SearchResultItem[] = []
     for (const serie of result.content ?? []) {
+      const imageUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie}/thumbnail`
+
       tiles.push({
-        imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${
-          serie
-        }/thumbnail`,
+        imageUrl: imageUrl,
         title: serie.metadata.title,
         mangaId: serie.id,
         subtitle: undefined,
@@ -265,11 +282,12 @@ export class KomgaExtension implements IKomgaExtension {
       chapters.push({
         chapterId: book.id,
         chapNum: parseFloat(book.metadata.number),
-        langCode: languageCode,
-        title: `${book.metadata.title} (${book.size})`,
+        langCode: book.size,
+        title: `${book.metadata.title}`,
         creationDate: new Date(book.fileLastModified),
         sortingIndex: book.metadata.numberSort,
         sourceManga: sourceManga,
+        version: languageCode
       })
     }
 
@@ -313,4 +331,300 @@ export class KomgaExtension implements IKomgaExtension {
   async getSettingsForm(): Promise<Form> {
     return new SettingsForm()
   }
+
+  async getDiscoverSections(): Promise<DiscoverSection[]> {
+    const sections: DiscoverSection[] = []
+
+    const showOnDeck = getShowOnDeck()
+    const showContinueReading = getShowContinueReading()
+
+    if (showOnDeck) {
+      sections.push({
+        id: 'showOnDeck',
+        title: 'On Deck',
+        type: DiscoverSectionType.simpleCarousel,
+      })
+    }
+
+    if (showContinueReading) {
+      sections.push({
+        id: 'continueReading',
+        title: 'Continue Reading',
+        type: DiscoverSectionType.simpleCarousel,
+      })
+    }
+
+    sections.push({
+      id: 'recentlyAdded',
+      title: 'Recently Added',
+      type: DiscoverSectionType.simpleCarousel,
+    })
+
+    sections.push({
+      id: 'recentlyUpdated',
+      title: 'Recently Updated',
+      type: DiscoverSectionType.simpleCarousel,
+    })
+
+    return sections
+  }
+
+  async getDiscoverSectionItems(
+    section: DiscoverSection,
+    metadata: { page: number } | undefined
+  ): Promise<PagedResults<DiscoverSectionItem>> {
+    switch (section.id) {
+      case 'showOnDeck': {
+        const { data, error } = await getBooksOnDeck({
+          query: { page: metadata?.page },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/books/${serie.id}/thumbnail`
+
+          items.push({
+            type: 'simpleCarouselItem',
+            title: serie.seriesTitle,
+            imageUrl: thumbnailUrl,
+            mangaId: serie.seriesId,
+            subtitle: undefined,
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      case 'continueReading': {
+        const { data, error } = await getBooksList({
+          query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
+          body: {
+            condition: {
+              deleted: isFalse(),
+              readStatus: isEqualTo('IN_PROGRESS'),
+            },
+          },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/books/${serie.id}/thumbnail`
+
+          items.push({
+            type: 'simpleCarouselItem',
+            title: serie.seriesTitle,
+            imageUrl: thumbnailUrl,
+            mangaId: serie.seriesId,
+            subtitle: undefined,
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      case 'recentlyAdded': {
+        const { data, error } = await getSeriesNew({
+          query: { page: metadata?.page, deleted: false },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
+
+          items.push({
+            type: 'simpleCarouselItem',
+            title: serie.name,
+            imageUrl: thumbnailUrl,
+            mangaId: serie.id,
+            subtitle: undefined,
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      case 'recentlyUpdated': {
+        const { data, error } = await getSeriesUpdated({
+          query: { page: metadata?.page, deleted: false },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
+
+          items.push({
+            type: 'simpleCarouselItem',
+            title: serie.name,
+            imageUrl: thumbnailUrl,
+            mangaId: serie.id,
+            subtitle: undefined,
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      default: {
+        throw new Error('Unknown section')
+      }
+    }
+  }
 }
+
+/*
+
+    override async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
+        // This function is called on the homepage and should not throw if the server is unavailable
+        // We won't use `await this.getKomgaAPI()` as we do not want to throw an error on
+        // the homepage when server settings are not set
+        const komgaAPI = await getKomgaAPI(this.stateManager)
+        const { showOnDeck, showContinueReading } = await getOptions(this.stateManager)
+        if (komgaAPI === null) {
+            console.log('searchRequest failed because server settings are unset')
+            const section = App.createHomeSection({
+                id: 'unset',
+                title: 'Go to source settings to set your Komga server credentials.',
+                items: getServerUnavailableMangaTiles(),
+                containsMoreItems: false,
+                type: 'singleRowNormal'
+            })
+            sectionCallback(section)
+            return
+        }
+        // The source define two homepage sections: new and latest
+        const sections = []
+        if (showOnDeck) {
+            sections.push(App.createHomeSection({
+                id: 'ondeck',
+                title: 'On Deck',
+                containsMoreItems: false,
+                type: 'singleRowNormal'
+            }))
+        }
+        if (showContinueReading) {
+            sections.push(App.createHomeSection({
+                id: 'continue',
+                title: 'Continue Reading',
+                containsMoreItems: false,
+                type: 'singleRowNormal'
+            }))
+        }
+        sections.push(App.createHomeSection({
+            id: 'new',
+            title: 'Recently added series',
+            containsMoreItems: true,
+            type: 'singleRowNormal'
+        }))
+        sections.push(App.createHomeSection({
+            id: 'updated',
+            title: 'Recently updated series',
+            containsMoreItems: true,
+            type: 'singleRowNormal'
+        }))
+        const promises: Promise<void>[] = []
+        for (const section of sections) {
+            // Let the app load empty tagSections
+            sectionCallback(section)
+            let apiPath: string, thumbPath: string, params: string, idProp: keyof BookDto
+            switch (section.id) {
+                case 'ondeck':
+                    apiPath = `${komgaAPI}/books/${section.id}`
+                    thumbPath = `${komgaAPI}/books`
+                    params = '?page=0&size=20&deleted=false'
+                    idProp = 'seriesId'
+                    break
+                case 'continue':
+                    apiPath = `${komgaAPI}/books`
+                    thumbPath = `${komgaAPI}/books`
+                    params = '?sort=readProgress.readDate,desc&read_status=IN_PROGRESS&page=0&size=20&deleted=false'
+                    idProp = 'seriesId'
+                    break
+                default:
+                    apiPath = `${komgaAPI}/series/${section.id}`
+                    thumbPath = `${komgaAPI}/series`
+                    params = '?page=0&size=20&deleted=false'
+                    idProp = 'id'
+                    break
+            }
+            const request = App.createRequest({
+                url: apiPath,
+                param: params,
+                method: 'GET'
+            })
+            // Get the section data
+            promises.push((async () => {
+                const data = await this.requestManager.schedule(request, 1)
+                const result: PageBookDto = typeof data.data === 'string' ? JSON.parse(data.data) : data.data
+
+                const tiles = []
+                if (!result.content) {
+                    return
+                }
+
+                for (const serie of result.content) {
+                    tiles.push(App.createPartialSourceManga({
+                        title: serie.metadata.title,
+                        image: `${thumbPath}/${serie.id}/thumbnail`,
+                        mangaId: serie[idProp],
+                        subtitle: undefined
+                    }))
+                }
+
+                section.items = tiles
+                sectionCallback(section)
+            })())
+        }
+        // Make sure the function completes
+        await Promise.all(promises)
+    }
+    override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
+        const komgaAPI = await getKomgaAPI(this.stateManager)
+        const page: number = metadata?.page ?? 0
+        const request = App.createRequest({
+            url: `${komgaAPI}/series/${homepageSectionId}`,
+            param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
+            method: 'GET'
+        })
+        const data = await this.requestManager.schedule(request, 1)
+        const result: PageBookDto = typeof data.data === 'string' ? JSON.parse(data.data) : data.data
+        const tiles: PartialSourceManga[] = []
+        for (const serie of result.content ?? []) {
+            tiles.push(App.createPartialSourceManga({
+                title: serie.metadata.title,
+                image: `${komgaAPI}/series/${serie.id}/thumbnail`,
+                mangaId: serie.id,
+                subtitle: undefined
+            }))
+        }
+        // If no series were returned we are on the last page
+        metadata = tiles.length === 0 ? undefined : { page: page + 1 }
+        return App.createPagedResults({
+            results: tiles,
+            metadata: metadata
+        })
+    }
+*/

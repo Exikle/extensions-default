@@ -12,7 +12,7 @@ import {
 } from '../utils/config.js'
 import { getCurrentUser } from '../sdk/sdk.gen.js'
 
-export class AuthenticationForm extends Form {
+export class ServerSettingsForm extends Form {
   baseUrl = getKomgaBaseURL()
   credentials = getKomgaCredentials()
 
@@ -28,7 +28,7 @@ export class AuthenticationForm extends Form {
           title: 'Base URL',
           value: this.baseUrl,
           onValueChange: Application.Selector(
-            this as AuthenticationForm,
+            this as ServerSettingsForm,
             'baseUrlDidChange'
           ),
         }),
@@ -55,7 +55,7 @@ export class AuthenticationForm extends Form {
           title: 'Username',
           value: this.credentials.username,
           onValueChange: Application.Selector(
-            this as AuthenticationForm,
+            this as ServerSettingsForm,
             'usernameDidChange'
           ),
         }),
@@ -63,7 +63,7 @@ export class AuthenticationForm extends Form {
           title: 'Password',
           value: this.credentials.password,
           onValueChange: Application.Selector(
-            this as AuthenticationForm,
+            this as ServerSettingsForm,
             'passwordDidChange'
           ),
         }),

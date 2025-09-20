@@ -31,5 +31,6 @@ export default {
     SourceIntents.SEARCH_RESULTS_PROVIDING,
     SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.SETTINGS_FORM_PROVIDING,
+    SourceIntents.DISCOVER_SECIONS_PROVIDING
   ],
 } satisfies ExtensionInfo

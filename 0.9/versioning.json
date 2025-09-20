@@ -1,12 +1,12 @@
 {
-  "buildTime": "2024-11-08T11:36:57.741Z",
+  "buildTime": "2025-09-20T20:35:48.032Z",
   "builtWith": {
-    "toolchain": "1.0.0-alpha.27",
-    "types": "1.0.0-alpha.27"
+    "toolchain": "1.0.0-alpha.57",
+    "types": "1.0.0-alpha.57"
   },
   "repository": {
-    "description": "An extension repository for Paperback",
-    "name": "Paperback Extension Repository"
+    "name": "Default Extensions",
+    "description": "Default extensions for Paperback 0.8"
   },
   "sources": [
     {
@@ -32,7 +32,12 @@
           "textColor": "#ffffff"
         }
       ],
-      "capabilities": 39,
+      "capabilities": [
+        64,
+        1,
+        32,
+        4
+      ],
       "id": "Komga"
     }
   ]

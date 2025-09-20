@@ -30,7 +30,7 @@ jobs:
       - run: npm run bundle -- --folder=${{ steps.extract_branch.outputs.branch }}
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@4.7.3
+        uses: JamesIves/github-pages-deploy-action@v4.7.3
         with:
           branch: gh-pages
           folder: bundles

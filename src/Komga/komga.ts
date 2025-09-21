@@ -38,9 +38,13 @@ import {
   getBookPages,
   getBooks as getBooksList,
   getBooksOnDeck,
+  getCollections,
+  getGenres,
+  getLibraries,
   getSeriesById as getOneSeries,
   getSeries as getSeriesList,
   getSeriesNew,
+  getSeriesTags,
   getSeriesUpdated,
 } from './sdk/index.js'
 import { client } from './sdk/client.gen.js'
@@ -120,12 +124,12 @@ export class KomgaExtension implements IKomgaExtension {
     ]
     // For each tag, we append a type identifier to its id and capitalize its label
     tagSections[0].tags = metadata.genres.map((elem: string) => ({
-      id: 'genre-' + encodeURIComponent(elem),
+      id: 'genre-' + btoa(elem),
       title: capitalize(elem),
     }))
 
     tagSections[1].tags = metadata.tags.map((elem: string) => ({
-      id: 'tag-' + encodeURIComponent(elem),
+      id: 'tag-' + btoa(elem),
       title: capitalize(elem),
     }))
 
@@ -160,7 +164,98 @@ export class KomgaExtension implements IKomgaExtension {
   }
 
   async getSearchFilters(): Promise<SearchFilter[]> {
-    return []
+    // This function is called on the homepage and should not throw if the server is unavailable
+    // We define four types of tags:
+    // - `genre`
+    // - `tag`
+    // - `collection`
+    // - `library`
+    // To be able to make the difference between theses types, we append `genre-` or `tag-` at the beginning of the tag id
+
+    const { data: genresResult, error: genresError } = await getGenres()
+    if (!genresResult) {
+      throw new Error(JSON.stringify(genresError, undefined, 2))
+    }
+
+    const { data: tagsResult, error: tagsError } = await getSeriesTags()
+    if (!tagsResult) {
+      throw new Error(JSON.stringify(tagsError, undefined, 2))
+    }
+
+    const { data: collectionResult, error: collectionError } =
+      await getCollections()
+    if (!collectionResult) {
+      throw new Error(JSON.stringify(collectionError, undefined, 2))
+    }
+
+    const { data: libraryResult, error: libraryError } = await getLibraries()
+    if (!libraryResult) {
+      throw new Error(JSON.stringify(libraryError, undefined, 2))
+    }
+
+    const genreSearchFilter: SearchFilter = {
+      type: 'multiselect',
+      allowEmptySelection: true,
+      allowExclusion: true,
+      id: 'genre',
+      title: 'Genres',
+      maximum: undefined,
+      options: genresResult.map((elem) => ({
+        id: 'genre-' + btoa(elem),
+        value: capitalize(elem),
+      })),
+      value: {},
+    }
+
+    const tagsSearchFilter: SearchFilter = {
+      type: 'multiselect',
+      allowEmptySelection: true,
+      allowExclusion: true,
+      id: 'tags',
+      title: 'Tags',
+      maximum: undefined,
+      options: tagsResult.map((elem) => ({
+        id: 'tag-' + btoa(elem),
+        value: capitalize(elem),
+      })),
+      value: {},
+    }
+
+    const collectionsSearchFilter: SearchFilter = {
+      type: 'multiselect',
+      allowEmptySelection: true,
+      allowExclusion: true,
+      id: 'collections',
+      title: 'Collections',
+      maximum: undefined,
+      options:
+        collectionResult.content?.map((elem) => ({
+          id: 'collection-' + btoa(elem.id),
+          value: capitalize(elem.name),
+        })) ?? [],
+      value: {},
+    }
+
+    const librarySearchFilter: SearchFilter = {
+      type: 'multiselect',
+      allowEmptySelection: true,
+      allowExclusion: true,
+      id: 'library',
+      title: 'Libraries',
+      maximum: undefined,
+      options: libraryResult.map((elem) => ({
+        id: 'library-' + btoa(elem.id),
+        value: capitalize(elem.name),
+      })),
+      value: {},
+    }
+
+    return [
+      genreSearchFilter,
+      tagsSearchFilter,
+      librarySearchFilter,
+      collectionsSearchFilter,
+    ]
   }
 
   async getSearchResults(
@@ -184,25 +279,25 @@ export class KomgaExtension implements IKomgaExtension {
         const keys = Object.keys(value)
         for (const key of keys) {
           const operator = value[key]! == 'included' ? 'is' : 'isNot'
-
+          console.log(key)
           // There are two types of tags: `tag` and `genre`
           if (key.substring(0, 4) == 'tag-') {
-            const tag = encodeURIComponent(key.substring(4))
+            const tag = encodeURIComponent(atob(key.substring(4)))
             filters.push({ tag: { operator, value: tag } })
           }
 
           if (key.substring(0, 6) == 'genre-') {
-            const genre = encodeURIComponent(key.substring(6))
+            const genre = encodeURIComponent(atob(key.substring(6)))
             filters.push({ tag: { operator, value: genre } })
           }
 
           if (key.substring(0, 11) == 'collection-') {
-            const collectionId = encodeURIComponent(key.substring(11))
+            const collectionId = encodeURIComponent(atob(key.substring(11)))
             filters.push({ tag: { operator, value: collectionId } })
           }
 
           if (key.substring(0, 8) == 'library-') {
-            const libraryId = encodeURIComponent(key.substring(8))
+            const libraryId = encodeURIComponent(atob(key.substring(8)))
             filters.push({ tag: { operator, value: libraryId } })
           }
         }
@@ -287,7 +382,7 @@ export class KomgaExtension implements IKomgaExtension {
         creationDate: new Date(book.fileLastModified),
         sortingIndex: book.metadata.numberSort,
         sourceManga: sourceManga,
-        version: languageCode
+        version: languageCode,
       })
     }
 

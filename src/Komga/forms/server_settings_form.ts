@@ -83,7 +83,13 @@ export class ServerSettingsForm extends Form {
   override async formDidSubmit(): Promise<void> {
     const { error, response } = await getCurrentUser({
       baseUrl: this.baseUrl,
-      auth: `${this.credentials.username}:${this.credentials.password}`,
+      auth: (auth) => {
+        if (auth.scheme === 'basic') {
+          return `${this.credentials.username}:${this.credentials.password}`
+        } else {
+          return undefined
+        }
+      },
     })
 
     if (!error) {

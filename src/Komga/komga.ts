@@ -90,10 +90,7 @@ export class KomgaExtension implements IKomgaExtension {
       baseUrl: getKomgaBaseURL(),
       auth(auth) {
         const { username, password } = getKomgaCredentials()
-        console.log(JSON.stringify(auth))
-        console.log(username)
-        console.log(password)
-
+        
         if (auth.type == 'http' && auth.scheme == 'basic') {
           return `${username}:${password}`
         }
@@ -497,7 +494,7 @@ export class KomgaExtension implements IKomgaExtension {
         }
       }
       case 'continueReading': {
-        const { data, error } = await getBooksList({
+        const { data, error } = await getSeriesList({
           query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
           body: {
             condition: {
@@ -513,13 +510,13 @@ export class KomgaExtension implements IKomgaExtension {
 
         const items: DiscoverSectionItem[] = []
         for (const serie of data.content ?? []) {
-          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/books/${serie.id}/thumbnail`
+          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
 
           items.push({
             type: 'simpleCarouselItem',
-            title: serie.seriesTitle,
+            title: serie.name,
             imageUrl: thumbnailUrl,
-            mangaId: serie.seriesId,
+            mangaId: serie.id,
             subtitle: undefined,
           })
         }
@@ -589,137 +586,3 @@ export class KomgaExtension implements IKomgaExtension {
     }
   }
 }
-
-/*
-
-    override async getHomePageSections(sectionCallback: (section: HomeSection) => void): Promise<void> {
-        // This function is called on the homepage and should not throw if the server is unavailable
-        // We won't use `await this.getKomgaAPI()` as we do not want to throw an error on
-        // the homepage when server settings are not set
-        const komgaAPI = await getKomgaAPI(this.stateManager)
-        const { showOnDeck, showContinueReading } = await getOptions(this.stateManager)
-        if (komgaAPI === null) {
-            console.log('searchRequest failed because server settings are unset')
-            const section = App.createHomeSection({
-                id: 'unset',
-                title: 'Go to source settings to set your Komga server credentials.',
-                items: getServerUnavailableMangaTiles(),
-                containsMoreItems: false,
-                type: 'singleRowNormal'
-            })
-            sectionCallback(section)
-            return
-        }
-        // The source define two homepage sections: new and latest
-        const sections = []
-        if (showOnDeck) {
-            sections.push(App.createHomeSection({
-                id: 'ondeck',
-                title: 'On Deck',
-                containsMoreItems: false,
-                type: 'singleRowNormal'
-            }))
-        }
-        if (showContinueReading) {
-            sections.push(App.createHomeSection({
-                id: 'continue',
-                title: 'Continue Reading',
-                containsMoreItems: false,
-                type: 'singleRowNormal'
-            }))
-        }
-        sections.push(App.createHomeSection({
-            id: 'new',
-            title: 'Recently added series',
-            containsMoreItems: true,
-            type: 'singleRowNormal'
-        }))
-        sections.push(App.createHomeSection({
-            id: 'updated',
-            title: 'Recently updated series',
-            containsMoreItems: true,
-            type: 'singleRowNormal'
-        }))
-        const promises: Promise<void>[] = []
-        for (const section of sections) {
-            // Let the app load empty tagSections
-            sectionCallback(section)
-            let apiPath: string, thumbPath: string, params: string, idProp: keyof BookDto
-            switch (section.id) {
-                case 'ondeck':
-                    apiPath = `${komgaAPI}/books/${section.id}`
-                    thumbPath = `${komgaAPI}/books`
-                    params = '?page=0&size=20&deleted=false'
-                    idProp = 'seriesId'
-                    break
-                case 'continue':
-                    apiPath = `${komgaAPI}/books`
-                    thumbPath = `${komgaAPI}/books`
-                    params = '?sort=readProgress.readDate,desc&read_status=IN_PROGRESS&page=0&size=20&deleted=false'
-                    idProp = 'seriesId'
-                    break
-                default:
-                    apiPath = `${komgaAPI}/series/${section.id}`
-                    thumbPath = `${komgaAPI}/series`
-                    params = '?page=0&size=20&deleted=false'
-                    idProp = 'id'
-                    break
-            }
-            const request = App.createRequest({
-                url: apiPath,
-                param: params,
-                method: 'GET'
-            })
-            // Get the section data
-            promises.push((async () => {
-                const data = await this.requestManager.schedule(request, 1)
-                const result: PageBookDto = typeof data.data === 'string' ? JSON.parse(data.data) : data.data
-
-                const tiles = []
-                if (!result.content) {
-                    return
-                }
-
-                for (const serie of result.content) {
-                    tiles.push(App.createPartialSourceManga({
-                        title: serie.metadata.title,
-                        image: `${thumbPath}/${serie.id}/thumbnail`,
-                        mangaId: serie[idProp],
-                        subtitle: undefined
-                    }))
-                }
-
-                section.items = tiles
-                sectionCallback(section)
-            })())
-        }
-        // Make sure the function completes
-        await Promise.all(promises)
-    }
-    override async getViewMoreItems(homepageSectionId: string, metadata: any): Promise<PagedResults> {
-        const komgaAPI = await getKomgaAPI(this.stateManager)
-        const page: number = metadata?.page ?? 0
-        const request = App.createRequest({
-            url: `${komgaAPI}/series/${homepageSectionId}`,
-            param: `?page=${page}&size=${PAGE_SIZE}&deleted=false`,
-            method: 'GET'
-        })
-        const data = await this.requestManager.schedule(request, 1)
-        const result: PageBookDto = typeof data.data === 'string' ? JSON.parse(data.data) : data.data
-        const tiles: PartialSourceManga[] = []
-        for (const serie of result.content ?? []) {
-            tiles.push(App.createPartialSourceManga({
-                title: serie.metadata.title,
-                image: `${komgaAPI}/series/${serie.id}/thumbnail`,
-                mangaId: serie.id,
-                subtitle: undefined
-            }))
-        }
-        // If no series were returned we are on the last page
-        metadata = tiles.length === 0 ? undefined : { page: page + 1 }
-        return App.createPagedResults({
-            results: tiles,
-            metadata: metadata
-        })
-    }
-*/

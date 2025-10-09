@@ -5,7 +5,7 @@ import {
 } from '@paperback/types'
 
 export default {
-  version: '2.1',
+  version: '2.2',
   name: 'Komga',
   icon: 'icon.png',
   developers: [
@@ -31,6 +31,7 @@ export default {
     SourceIntents.SEARCH_RESULTS_PROVIDING,
     SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.SETTINGS_FORM_PROVIDING,
-    SourceIntents.DISCOVER_SECIONS_PROVIDING
+    SourceIntents.DISCOVER_SECIONS_PROVIDING,
+    SourceIntents.CLOUDFLARE_BYPASS_PROVIDING
   ],
 } satisfies ExtensionInfo

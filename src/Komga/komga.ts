@@ -150,12 +150,14 @@ export class KomgaExtension implements IKomgaExtension {
         primaryTitle: metadata.title,
         secondaryTitles: [],
         contentRating: ContentRating.EVERYONE,
-
         status: parseMangaStatus(metadata.status),
         artist: artists.join(', '),
         author: authors.join(', '),
         synopsis: metadata.summary ? metadata.summary : booksMetadata.summary,
         tagGroups: tagSections,
+        additionalInfo: {
+          language: metadata.language,
+        },
       },
     }
   }
@@ -374,9 +376,10 @@ export class KomgaExtension implements IKomgaExtension {
       chapters.push({
         chapterId: book.id,
         chapNum: parseFloat(book.metadata.number),
+        volume: 0,
         langCode: book.size,
-        title: `${book.metadata.title}`,
-        creationDate: new Date(book.fileLastModified),
+        title: (book.metadata.title ?? '').replace(/^chapter\s+[\d.]+[:\s-]*/i, '').trim(),
+        publishDate: book.metadata.releaseDate ? new Date(book.metadata.releaseDate) : new Date(book.fileLastModified),
         sortingIndex: book.metadata.numberSort,
         sourceManga: sourceManga,
         version: languageCode,

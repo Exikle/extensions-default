@@ -5,7 +5,7 @@ import {
 } from '@paperback/types'
 
 export default {
-  version: '2.3',
+  version: '3.0',
   name: 'Komga',
   icon: 'icon.png',
   developers: [

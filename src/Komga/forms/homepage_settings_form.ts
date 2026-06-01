@@ -12,11 +12,11 @@ import {
 } from '../utils/config.js'
 
 export class HomepageSettingsForm extends Form {
-  override getSections(): FormSectionElement[] {
+  override getSections(): FormSectionElement<unknown>[] {
     return [this.staticHomepageSection()]
   }
 
-  staticHomepageSection(): FormSectionElement {
+  staticHomepageSection(): FormSectionElement<unknown> {
     return Section(
       { id: 'staticHomepageSection', header: 'Static Hompage Sections' },
       [

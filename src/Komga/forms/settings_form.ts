@@ -3,7 +3,7 @@ import { ServerSettingsForm } from './server_settings_form.js'
 import { HomepageSettingsForm } from './homepage_settings_form.js'
 
 export class SettingsForm extends Form {
-  override getSections(): FormSectionElement[] {
+  override getSections(): FormSectionElement<unknown>[] {
     return [
       Section('authentication', [
         NavigationRow('authentication', {

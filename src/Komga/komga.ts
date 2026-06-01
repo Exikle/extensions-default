@@ -12,27 +12,29 @@
 //  - search method which is called even if the user search in an other source
 
 import {
+  SearchFilterForm,
+  type SearchFilter,
+  type SearchFilterValue,
+} from '@paperback/types/lib/compat/0.8/index.js'
+
+import {
+  AdvancedSearchForm,
   type Chapter,
   type ChapterDetails,
-  type ChapterProviding,
+  type ChapterReadActionQueueProcessingResult,
   ContentRating,
   type DiscoverSection,
   type DiscoverSectionItem,
-  type DiscoverSectionProviding,
   DiscoverSectionType,
-  type Extension,
+  type ExtensionImpl,
   Form,
-  type MangaProviding,
+  type MangaProgress,
   type PagedResults,
-  type SearchFilter,
   type SearchQuery,
   type SearchResultItem,
-  type SearchResultsProviding,
-  type SettingsFormProviding,
-  type SortingOption,
   type SourceManga,
   type TagSection,
-  type UpdateManager,
+  type TrackedMangaChapterReadAction,
 } from '@paperback/types'
 import {
   getBookPages,
@@ -41,11 +43,13 @@ import {
   getCollections,
   getGenres,
   getLibraries,
+  getMihonReadProgressBySeriesId,
   getSeriesById as getOneSeries,
   getSeries as getSeriesList,
   getSeriesNew,
   getSeriesTags,
   getSeriesUpdated,
+  markBookReadProgress,
 } from './sdk/index.js'
 import { client } from './sdk/client.gen.js'
 import { KomgaImageInterceptor } from './interceptors/image_interceptor.js'
@@ -57,6 +61,8 @@ import {
   getShowOnDeck,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
+import { ProgressManagementForm } from './forms/progress_management_form.js'
+import type KomgaConfig from './pbconfig.js'
 
 const SUPPORTED_IMAGE_TYPES = [
   'image/jpeg',
@@ -74,14 +80,88 @@ export const capitalize = (tag: string): string => {
   return tag.replace(/^\w/, (c) => c.toUpperCase())
 }
 
-type IKomgaExtension = Extension &
-  MangaProviding &
-  SearchResultsProviding &
-  ChapterProviding &
-  SettingsFormProviding &
-  DiscoverSectionProviding
+export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
+  async getAdvancedSearchForm(
+    query: SearchQuery<SearchFilterValue[]>
+  ): Promise<AdvancedSearchForm> {
+    return new SearchFilterForm(query.metadata, this.getSearchFilters())
+  }
 
-export class KomgaExtension implements IKomgaExtension {
+  async getMangaProgressManagementForm(
+    sourceManga: SourceManga
+  ): Promise<Form> {
+    const [chapters, progress] = await Promise.all([
+      this.getChapters(sourceManga),
+      getMihonReadProgressBySeriesId({
+        path: { seriesId: sourceManga.mangaId },
+      }),
+    ])
+
+    if (progress.error) {
+      throw new Error(JSON.stringify(progress.error, undefined, 2))
+    }
+
+    return new ProgressManagementForm(
+      sourceManga,
+      chapters,
+      progress.data?.lastReadContinuousNumberSort ?? 0
+    )
+  }
+
+  async getMangaProgress(
+    sourceManga: SourceManga
+  ): Promise<MangaProgress | undefined> {
+    const { data } = await getMihonReadProgressBySeriesId({
+      path: { seriesId: sourceManga.mangaId },
+    })
+
+    if (!data || data.lastReadContinuousNumberSort <= 0) {
+      return undefined
+    }
+
+    const chapters = await this.getChapters(sourceManga)
+    const lastReadChapter = chapters
+      .filter(
+        (chapter) =>
+          (chapter.sortingIndex ?? chapter.chapNum) <=
+          data.lastReadContinuousNumberSort
+      )
+      .sort(
+        (a, b) => (b.sortingIndex ?? b.chapNum) - (a.sortingIndex ?? a.chapNum)
+      )[0]
+
+    if (!lastReadChapter) {
+      return undefined
+    }
+
+    return {
+      sourceManga,
+      lastReadChapter,
+    }
+  }
+
+  async processChapterReadActionQueue(
+    actions: TrackedMangaChapterReadAction[]
+  ): Promise<ChapterReadActionQueueProcessingResult> {
+    const successfulItems: string[] = []
+    const failedItems: string[] = []
+
+    for (const action of actions) {
+      const { error } = await markBookReadProgress({
+        path: { bookId: action.chapterId },
+        body: { completed: true },
+      })
+
+      if (error) {
+        failedItems.push(action.id)
+      } else {
+        successfulItems.push(action.id)
+      }
+    }
+
+    return { successfulItems, failedItems }
+  }
+
   imageInterceptor = new KomgaImageInterceptor('images')
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
@@ -90,7 +170,7 @@ export class KomgaExtension implements IKomgaExtension {
       baseUrl: getKomgaBaseURL(),
       auth(auth) {
         const { username, password } = getKomgaCredentials()
-        
+
         if (auth.type == 'http' && auth.scheme == 'basic') {
           return `${username}:${password}`
         }
@@ -258,7 +338,7 @@ export class KomgaExtension implements IKomgaExtension {
   }
 
   async getSearchResults(
-    searchQuery: SearchQuery,
+    searchQuery: SearchQuery<SearchFilterValue[]>,
     metadata: { page: number } | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
@@ -271,13 +351,18 @@ export class KomgaExtension implements IKomgaExtension {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filters: any[] = []
-    for (const filter of searchQuery.filters) {
+    for (const filter of searchQuery.metadata ?? []) {
       const value = filter.value
 
       if (typeof value === 'object') {
         const keys = Object.keys(value)
         for (const key of keys) {
-          const operator = value[key]! == 'included' ? 'is' : 'isNot'
+          const filterValue = value[key]
+          if (!filterValue) {
+            continue
+          }
+
+          const operator = filterValue == 'included' ? 'is' : 'isNot'
           console.log(key)
           // There are two types of tags: `tag` and `genre`
           if (key.substring(0, 4) == 'tag-') {
@@ -287,17 +372,17 @@ export class KomgaExtension implements IKomgaExtension {
 
           if (key.substring(0, 6) == 'genre-') {
             const genre = encodeURIComponent(atob(key.substring(6)))
-            filters.push({ tag: { operator, value: genre } })
+            filters.push({ genre: { operator, value: genre } })
           }
 
           if (key.substring(0, 11) == 'collection-') {
             const collectionId = encodeURIComponent(atob(key.substring(11)))
-            filters.push({ tag: { operator, value: collectionId } })
+            filters.push({ collectionId: { operator, value: collectionId } })
           }
 
           if (key.substring(0, 8) == 'library-') {
             const libraryId = encodeURIComponent(atob(key.substring(8)))
-            filters.push({ tag: { operator, value: libraryId } })
+            filters.push({ libraryId: { operator, value: libraryId } })
           }
         }
       }
@@ -328,7 +413,7 @@ export class KomgaExtension implements IKomgaExtension {
 
     const tiles: SearchResultItem[] = []
     for (const serie of result.content ?? []) {
-      const imageUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie}/thumbnail`
+      const imageUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
 
       tiles.push({
         imageUrl: imageUrl,

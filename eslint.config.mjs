@@ -11,8 +11,6 @@ export default defineConfig([
     extends: ['js/recommended'],
   },
   tseslint.configs.strict,
-  // { files: ["**/*.json"], plugins: { json }, language: "json/json", extends: ["json/recommended"] },
-  // { files: ["**/*.jsonc"], plugins: { json }, language: "json/jsonc", extends: ["json/recommended"] },
   eslintConfigPrettier,
   {
     rules: {

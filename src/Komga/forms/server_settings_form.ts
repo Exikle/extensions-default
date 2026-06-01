@@ -71,14 +71,12 @@ export class ServerSettingsForm extends Form {
     )
   }
 
-  override getSections(): FormSectionElement[] {
+  override getSections(): FormSectionElement<unknown>[] {
     return [this.baseUrlSection(), this.credentialsSection()]
   }
 
   // Validate the credentials
-  override get requiresExplicitSubmission(): boolean {
-    return true
-  }
+  override requiresExplicitSubmission: boolean = true
 
   override async formDidSubmit(): Promise<void> {
     const { error, response } = await getCurrentUser({

@@ -1,5 +1,7 @@
-/bundles
-/tmp
+.DS_Store
+lib
+bundles
+tmp
 
 # Logs
 logs

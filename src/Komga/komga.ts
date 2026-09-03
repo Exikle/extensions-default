@@ -81,6 +81,20 @@ export const capitalize = (tag: string): string => {
   return tag.replace(/^\w/, (c) => c.toUpperCase())
 }
 
+// Komga stores an age rating as a minimum age
+export const parseContentRating = (ageRating?: number): ContentRating => {
+  if (ageRating === undefined) {
+    return ContentRating.EVERYONE
+  }
+  if (ageRating >= 18) {
+    return ContentRating.ADULT
+  }
+  if (ageRating >= 16) {
+    return ContentRating.MATURE
+  }
+  return ContentRating.EVERYONE
+}
+
 export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
   async getAdvancedSearchForm(
     query: SearchQuery<SearchFilterValue[]>
@@ -229,8 +243,8 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       mangaInfo: {
         thumbnailUrl: thumbnailUrl,
         primaryTitle: metadata.title,
-        secondaryTitles: [],
-        contentRating: ContentRating.EVERYONE,
+        secondaryTitles: metadata.alternateTitles.map((alt) => alt.title),
+        contentRating: parseContentRating(metadata.ageRating),
         status: parseMangaStatus(metadata.status),
         artist: artists.join(', '),
         author: authors.join(', '),
@@ -238,6 +252,8 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         tagGroups: tagSections,
         additionalInfo: {
           language: metadata.language,
+          readingDirection: metadata.readingDirection,
+          publisher: metadata.publisher,
         },
       },
     }

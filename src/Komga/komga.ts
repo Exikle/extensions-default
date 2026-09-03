@@ -22,7 +22,6 @@ import {
   type Chapter,
   type ChapterDetails,
   type ChapterReadActionQueueProcessingResult,
-  ContentRating,
   type DiscoverSection,
   type DiscoverSectionItem,
   DiscoverSectionType,
@@ -41,33 +40,30 @@ import {
 import {
   getBookPages,
   getBooks as getBooksList,
-  getBooksOnDeck,
   getCollections,
   getGenres,
   getLibraries,
   getMihonReadProgressBySeriesId,
   getSeriesById as getOneSeries,
   getSeries as getSeriesList,
-  getSeriesNew,
   getSeriesTags,
   getSeriesUpdated,
   markBookReadProgress,
 } from './sdk/index.js'
 import { client } from './sdk/client.gen.js'
 import { KomgaImageInterceptor } from './interceptors/image_interceptor.js'
-import { isEqualTo, isFalse, isNotEqualTo, Operator } from './utils.js'
-import type { AllOfSeries } from './sdk/types.gen.js'
+import { Operator } from './utils/operators.js'
 import {
-  getAdultGenres,
-  getHideAdultContent,
   getKomgaBaseURL,
   getKomgaCredentials,
-  getIncludeOneshots,
   getSectionStyle,
-  getSelectedLibraries,
   type SectionStyle,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
+import { discoverSectionItems } from './discover.js'
+import { capitalize, PAGE_SIZE, parseMangaStatus } from './utils/formatting.js'
+import { parseContentRating } from './utils/content_rating.js'
+import { hiddenGenreConditions, scopeConditions } from './utils/filters.js'
 import { DISCOVER_SECTIONS } from './discover_sections.js'
 import { parseChapterTitle } from './utils/titles.js'
 import { ProgressManagementForm } from './forms/progress_management_form.js'
@@ -80,52 +76,7 @@ const SUPPORTED_IMAGE_TYPES = [
   'image/webp',
   'application/pdf',
 ]
-// Number of items requested for paged requests
-const PAGE_SIZE = 40
-export const parseMangaStatus = (komgaStatus: string): string => {
-  return komgaStatus.toLowerCase()
-}
-export const capitalize = (tag: string): string => {
-  return tag.replace(/^\w/, (c) => c.toUpperCase())
-}
 
-// Komga libraries rarely set ageRating, so genres are the usable signal. These
-// are matched case-insensitively against SeriesMetadataDto.genres.
-const ADULT_GENRES = ['adult', 'hentai', 'smut', 'erotica', 'pornographic']
-const MATURE_GENRES = ['mature', 'ecchi']
-
-// ageRating is a minimum age when set; otherwise fall back to genres
-export const parseContentRating = (metadata: {
-  ageRating?: number
-  genres?: Array<string>
-}): ContentRating => {
-  // Komga sends `ageRating: null` on the wire even though the generated type
-  // declares it optional, so check the runtime type rather than for undefined
-  const { ageRating } = metadata
-  if (typeof ageRating === 'number') {
-    if (ageRating >= 18) {
-      return ContentRating.ADULT
-    }
-    if (ageRating >= 16) {
-      return ContentRating.MATURE
-    }
-    return ContentRating.EVERYONE
-  }
-
-  const genres = (metadata.genres ?? []).map((genre) => genre.toLowerCase())
-  if (genres.some((genre) => ADULT_GENRES.includes(genre))) {
-    return ContentRating.ADULT
-  }
-  if (genres.some((genre) => MATURE_GENRES.includes(genre))) {
-    return ContentRating.MATURE
-  }
-  return ContentRating.EVERYONE
-}
-
-// Komga silently ignores an unrecognised sort field rather than erroring, so
-// every entry here was checked against a live server by confirming asc and desc
-// actually differ. `titleSort`, `releaseDate` and `folderName` are all ignored;
-// the working title field is `metadata.titleSort`.
 // A series' lastModified can trail its books' created time by a few seconds
 // when both are written during one library scan, so look slightly further back
 // than the app's last check to avoid skipping a series that did gain chapters.
@@ -179,72 +130,6 @@ const pickShareUrl = (
     }
   }
   return links[0]?.url
-}
-
-// `/series/list` takes a search condition, so hidden genres are excluded by the
-// server. `/series/new` and `/series/updated` take no condition, so those get
-// filtered here instead.
-const hiddenGenreConditions = () => {
-  if (!getHideAdultContent()) {
-    return []
-  }
-  return getAdultGenres().map((genre) => ({ genre: isNotEqualTo(genre) }))
-}
-
-// On Deck returns books, and Komga puts genres only on series. Rather than a
-// lookup per book, fetch the hidden series once and filter by membership.
-const hiddenSeriesIds = async (): Promise<Set<string>> => {
-  if (!getHideAdultContent()) {
-    return new Set()
-  }
-
-  const { data } = await getSeriesList({
-    query: { unpaged: true },
-    body: {
-      condition: {
-        anyOf: getAdultGenres().map((genre) => ({ genre: isEqualTo(genre) })),
-      },
-    },
-  }).catch(() => ({ data: undefined }))
-
-  return new Set((data?.content ?? []).map((serie) => serie.id))
-}
-
-// Library scope and one-shot inclusion apply to every browse query. The
-// discover endpoints take them as query params; /series/list takes conditions.
-const scopeQuery = () => {
-  const libraries = getSelectedLibraries()
-  return {
-    ...(libraries.length > 0 ? { library_id: libraries } : {}),
-    ...(getIncludeOneshots() ? {} : { oneshot: false }),
-  }
-}
-
-const scopeConditions = () => {
-  const libraries = getSelectedLibraries()
-  const conditions: AllOfSeries['allOf'] = []
-
-  if (libraries.length > 0) {
-    conditions.push({
-      anyOf: libraries.map((id) => ({ libraryId: isEqualTo(id) })),
-    })
-  }
-
-  if (!getIncludeOneshots()) {
-    conditions.push({ oneShot: isFalse() })
-  }
-
-  return conditions
-}
-
-const isHiddenSeries = (metadata: { genres?: Array<string> }): boolean => {
-  if (!getHideAdultContent()) {
-    return false
-  }
-  const hidden = getAdultGenres()
-  return (metadata.genres ?? []).some((genre) =>
-    hidden.includes(genre.toLowerCase())
-  )
 }
 
 export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
@@ -774,206 +659,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     return sections
   }
 
-  // One builder per source shape, so a section's style only changes how its
-  // covers are presented rather than duplicating the query
-  private seriesItem(
-    serie: {
-      id: string
-      name: string
-      booksCount: number
-      booksReadCount: number
-      metadata: {
-        title: string
-        status: string
-        publisher: string
-        summary: string
-        genres?: Array<string>
-        ageRating?: number
-      }
-    },
-    style: SectionStyle
-  ): DiscoverSectionItem {
-    const base = {
-      mangaId: serie.id,
-      title: serie.metadata.title || serie.name,
-      imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
-      contentRating: parseContentRating(serie.metadata),
-    }
-
-    if (style === 'hero') {
-      return {
-        type: 'featuredCarouselItem',
-        ...base,
-        supertitle: [
-          parseMangaStatus(serie.metadata.status).toUpperCase(),
-          serie.metadata.publisher,
-        ]
-          .filter(Boolean)
-          .join(' \u00b7 '),
-        summary: serie.metadata.summary,
-        infoItems: [
-          { symbol: 'book.fill', text: `${serie.booksCount}` },
-          {
-            symbol: 'checkmark.circle.fill',
-            text: `${serie.booksReadCount} read`,
-          },
-        ],
-      }
-    }
-
-    const subtitle =
-      serie.booksCount > 0
-        ? `${serie.booksReadCount} of ${serie.booksCount} read`
-        : undefined
-
-    return style === 'large'
-      ? { type: 'prominentCarouselItem', ...base, subtitle }
-      : { type: 'simpleCarouselItem', ...base, subtitle: undefined }
-  }
-
   async getDiscoverSectionItems(
     section: DiscoverSection,
     metadata: { page: number } | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    const style = getSectionStyle(section.id)
-    const page = metadata?.page
-
-    switch (section.id) {
-      case 'onDeck': {
-        const { data, error } = await getBooksOnDeck({
-          query: { page, ...scopeQuery() },
-        })
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const hidden = await hiddenSeriesIds()
-        const items: DiscoverSectionItem[] = []
-
-        for (const book of data.content ?? []) {
-          if (hidden.has(book.seriesId)) {
-            continue
-          }
-
-          items.push({
-            type:
-              style === 'large'
-                ? 'prominentCarouselItem'
-                : 'simpleCarouselItem',
-            mangaId: book.seriesId,
-            title: book.seriesTitle,
-            subtitle: book.metadata.title,
-            imageUrl: `${client.getConfig().baseUrl}/api/v1/books/${book.id}/thumbnail`,
-          })
-        }
-
-        return {
-          items,
-          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
-        }
-      }
-      case 'keepReading': {
-        const { data, error } = await getSeriesList({
-          query: { sort: ['readProgress.readDate,desc'], page },
-          body: {
-            condition: {
-              allOf: [
-                { deleted: isFalse() },
-                { readStatus: isEqualTo('IN_PROGRESS') },
-                ...hiddenGenreConditions(),
-                ...scopeConditions(),
-              ],
-            },
-          },
-        })
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        return {
-          items: (data.content ?? []).map((serie) =>
-            this.seriesItem(serie, style)
-          ),
-          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
-        }
-      }
-      case 'nearlyFinished': {
-        // Komga ignores booksUnreadCount as a sort field, so order it here.
-        // The set is bounded by what the user is actually reading, which keeps
-        // the unpaged fetch cheap.
-        const { data, error } = await getSeriesList({
-          query: { unpaged: true },
-          body: {
-            condition: {
-              allOf: [
-                { deleted: isFalse() },
-                { readStatus: isEqualTo('IN_PROGRESS') },
-                ...hiddenGenreConditions(),
-                ...scopeConditions(),
-              ],
-            },
-          },
-        })
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const items = (data.content ?? [])
-          .filter((serie) => serie.booksUnreadCount > 0)
-          .sort((a, b) => a.booksUnreadCount - b.booksUnreadCount)
-          .slice(0, PAGE_SIZE)
-          .map((serie) => this.seriesItem(serie, style))
-
-        return { items, metadata: undefined }
-      }
-      case 'recentlyAdded':
-      case 'recentlyUpdated': {
-        const fetch =
-          section.id === 'recentlyAdded' ? getSeriesNew : getSeriesUpdated
-        const { data, error } = await fetch({
-          query: { page, deleted: false, ...scopeQuery() },
-        })
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const items = (data.content ?? [])
-          .filter((serie) => !isHiddenSeries(serie.metadata))
-          .map((serie) => this.seriesItem(serie, style))
-
-        return {
-          items,
-          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
-        }
-      }
-      case 'genres': {
-        const genres = await getGenres()
-          .then((r) => r.data ?? [])
-          .catch(() => [])
-
-        const hidden = getHideAdultContent() ? getAdultGenres() : []
-
-        const items: DiscoverSectionItem[] = genres
-          .filter((genre) => !hidden.includes(genre.toLowerCase()))
-          .map((genre) => ({
-            type: 'genresCarouselItem' as const,
-            name: capitalize(genre),
-            searchQuery: {
-              title: '',
-              metadata: [
-                {
-                  id: 'genre',
-                  value: { ['genre-' + btoa(genre)]: 'included' as const },
-                },
-              ],
-            },
-          }))
-
-        return { items, metadata: undefined }
-      }
-      default: {
-        throw new Error(`Unknown section ${section.id}`)
-      }
-    }
+    return discoverSectionItems(section, metadata)
   }
 }

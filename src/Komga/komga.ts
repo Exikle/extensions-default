@@ -32,6 +32,7 @@ import {
   type PagedResults,
   type SearchQuery,
   type SearchResultItem,
+  type SortingOption,
   type SourceManga,
   type TagSection,
   type TrackedMangaChapterReadAction,
@@ -117,6 +118,25 @@ export const parseContentRating = (metadata: {
   }
   return ContentRating.EVERYONE
 }
+
+// Komga silently ignores an unrecognised sort field rather than erroring, so
+// every entry here was checked against a live server by confirming asc and desc
+// actually differ. `titleSort`, `releaseDate` and `folderName` are all ignored;
+// the working title field is `metadata.titleSort`.
+const DEFAULT_SORT = 'metadata.titleSort,asc'
+
+const SORT_OPTIONS: Array<SortingOption & { sort: string }> = [
+  { id: 'titleAsc', label: 'Title (A-Z)', sort: DEFAULT_SORT },
+  { id: 'titleDesc', label: 'Title (Z-A)', sort: 'metadata.titleSort,desc' },
+  { id: 'recentlyAdded', label: 'Recently Added', sort: 'created,desc' },
+  {
+    id: 'recentlyUpdated',
+    label: 'Recently Updated',
+    sort: 'lastModified,desc',
+  },
+  { id: 'recentlyRead', label: 'Recently Read', sort: 'readDate,desc' },
+  { id: 'mostChapters', label: 'Most Chapters', sort: 'booksCount,desc' },
+]
 
 // Preferred targets for the app's share action, best first. Komga records many
 // links per series; anything not listed here is used only as a last resort.
@@ -424,15 +444,19 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     ]
   }
 
+  async getSortingOptions(): Promise<SortingOption[]> {
+    return SORT_OPTIONS.map(({ id, label }) => ({ id, label }))
+  }
+
   async getSearchResults(
     searchQuery: SearchQuery<SearchFilterValue[]>,
-    metadata: { page: number } | undefined
+    metadata: { page: number } | undefined,
+    sortingOption: SortingOption | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     // This function is also called when the user search in an other source. It should not throw if the server is unavailable.
-    // We won't use `await this.getKomgaAPI()` as we do not want to throw an error
-    // const komgaAPI = await getKomgaAPI(stateManager);
-    // const { orderResultsAlphabetically } = await getOptions(stateManager);
-    const orderResultsAlphabetically = true
+    const sort =
+      SORT_OPTIONS.find((option) => option.id === sortingOption?.id)?.sort ??
+      DEFAULT_SORT
 
     const page: number = metadata?.page ?? 0
 
@@ -478,7 +502,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       query: {
         page,
         size: PAGE_SIZE,
-        sort: [orderResultsAlphabetically ? 'titleSort' : 'lastModified,desc'],
+        sort: [sort],
       },
       body: {
         fullTextSearch: searchQuery.title,

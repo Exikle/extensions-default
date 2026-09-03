@@ -1,9 +1,16 @@
 import { ContentRating } from '@paperback/types'
 
 // Komga libraries rarely set ageRating, so genres are the usable signal. These
-// are matched case-insensitively against SeriesMetadataDto.genres.
-const ADULT_GENRES = ['adult', 'hentai', 'smut', 'erotica', 'pornographic']
-const MATURE_GENRES = ['mature', 'ecchi']
+// are matched case-insensitively against SeriesMetadataDto.genres, and are the
+// single source for both the rating below and the default hide list in config.
+export const ADULT_GENRES = [
+  'adult',
+  'hentai',
+  'smut',
+  'erotica',
+  'pornographic',
+]
+export const MATURE_GENRES = ['mature', 'ecchi']
 
 // ageRating is a minimum age when set; otherwise fall back to genres
 export const parseContentRating = (metadata: {

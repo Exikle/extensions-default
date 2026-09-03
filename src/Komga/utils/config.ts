@@ -1,3 +1,5 @@
+import { ADULT_GENRES, MATURE_GENRES } from './content_rating.js'
+
 const KEY_KOMGA_BASE_URL = 'serverURL'
 const KEY_KOMGA_USERNAME = 'serverUsername'
 const KEY_KOMGA_PASSWORD = 'serverPassword'
@@ -9,15 +11,7 @@ const DEFAULT_KOMGA_USERNAME = 'demo@komga.org'
 const DEFAULT_KOMGA_PASSWORD = 'komga-demo'
 const DEFAULT_HIDE_ADULT_CONTENT = false
 // Matched case-insensitively against a series' genres
-const DEFAULT_ADULT_GENRES = [
-  'adult',
-  'hentai',
-  'smut',
-  'erotica',
-  'pornographic',
-  'mature',
-  'ecchi',
-]
+const DEFAULT_ADULT_GENRES = [...ADULT_GENRES, ...MATURE_GENRES]
 
 function getStateOrDefault<T>(key: string, def: T): T {
   return (Application.getState(key) as T) ?? def

@@ -44,7 +44,7 @@ export class ContentSettingsForm extends Form {
         {
           id: 'adultContent',
           footer:
-            'Hides series whose genres match the list below. Komga rarely sets an age rating, so this matches on genres instead. On Deck cannot be filtered because Komga does not expose genres on books.',
+            'Hides series whose genres match the list below. Komga rarely sets an age rating, so this matches on genres instead.',
         },
         [
           ToggleRow('hideAdultContent', {

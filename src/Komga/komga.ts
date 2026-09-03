@@ -183,6 +183,25 @@ const hiddenGenreConditions = () => {
   return getAdultGenres().map((genre) => ({ genre: isNotEqualTo(genre) }))
 }
 
+// On Deck returns books, and Komga puts genres only on series. Rather than a
+// lookup per book, fetch the hidden series once and filter by membership.
+const hiddenSeriesIds = async (): Promise<Set<string>> => {
+  if (!getHideAdultContent()) {
+    return new Set()
+  }
+
+  const { data } = await getSeriesList({
+    query: { unpaged: true },
+    body: {
+      condition: {
+        anyOf: getAdultGenres().map((genre) => ({ genre: isEqualTo(genre) })),
+      },
+    },
+  }).catch(() => ({ data: undefined }))
+
+  return new Set((data?.content ?? []).map((serie) => serie.id))
+}
+
 const isHiddenSeries = (metadata: { genres?: Array<string> }): boolean => {
   if (!getHideAdultContent()) {
     return false
@@ -597,6 +616,8 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         publishDate: book.metadata.releaseDate
           ? new Date(book.metadata.releaseDate)
           : new Date(book.fileLastModified),
+        // When the book landed in the library, as opposed to when it published
+        creationDate: new Date(book.created),
         sortingIndex: book.metadata.numberSort,
         sourceManga: sourceManga,
       })
@@ -776,8 +797,14 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           throw new Error(JSON.stringify(error, undefined, 2))
         }
 
+        const hidden = await hiddenSeriesIds()
+
         const items: DiscoverSectionItem[] = []
         for (const serie of data.content ?? []) {
+          if (hidden.has(serie.seriesId)) {
+            continue
+          }
+
           const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/books/${serie.id}/thumbnail`
 
           items.push({

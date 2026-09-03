@@ -61,6 +61,7 @@ import {
   getShowOnDeck,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
+import { parseChapterTitle } from './utils/titles.js'
 import { ProgressManagementForm } from './forms/progress_management_form.js'
 import type KomgaConfig from './pbconfig.js'
 
@@ -458,16 +459,24 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       sourceManga.mangaInfo.additionalInfo?.['language']?.toUpperCase() ??
       'UNKNOWN'
     for (const book of booksResult.content ?? []) {
+      // Komga has no volume field on a book, it is embedded in the title
+      const { title, volume } = parseChapterTitle(
+        book.metadata.title,
+        book.metadata.number
+      )
+
       chapters.push({
         chapterId: book.id,
         chapNum: parseFloat(book.metadata.number),
-        volume: 0,
-        langCode: book.size,
-        title: (book.metadata.title ?? '').replace(/^chapter\s+[\d.]+[:\s-]*/i, '').trim(),
-        publishDate: book.metadata.releaseDate ? new Date(book.metadata.releaseDate) : new Date(book.fileLastModified),
+        langCode: languageCode,
+        // An unset volume renders as `Vol. TBA`, 0 hides the segment
+        title: title ?? '',
+        volume: volume ?? 0,
+        publishDate: book.metadata.releaseDate
+          ? new Date(book.metadata.releaseDate)
+          : new Date(book.fileLastModified),
         sortingIndex: book.metadata.numberSort,
         sourceManga: sourceManga,
-        version: languageCode,
       })
     }
 

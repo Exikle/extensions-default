@@ -6,6 +6,7 @@ import {
 } from '@paperback/types'
 import { ServerSettingsForm } from './server_settings_form.js'
 import { HomepageSettingsForm } from './homepage_settings_form.js'
+import { ContentSettingsForm } from './content_settings_form.js'
 
 export class SettingsForm extends Form {
   override getSections(): FormSectionElement<unknown>[] {
@@ -21,6 +22,13 @@ export class SettingsForm extends Form {
         NavigationRow('homepageSettings', {
           title: 'Homepage Settings',
           form: new HomepageSettingsForm(),
+        }),
+      ]),
+
+      Section('contentSettings', [
+        NavigationRow('contentSettings', {
+          title: 'Content Settings',
+          form: new ContentSettingsForm(),
         }),
       ]),
     ]

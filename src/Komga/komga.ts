@@ -53,12 +53,16 @@ import {
 } from './sdk/index.js'
 import { client } from './sdk/client.gen.js'
 import { KomgaImageInterceptor } from './interceptors/image_interceptor.js'
-import { isEqualTo, isFalse, Operator } from './utils.js'
+import { isEqualTo, isFalse, isNotEqualTo, Operator } from './utils.js'
 import {
+  getAdultGenres,
+  getHideAdultContent,
   getKomgaBaseURL,
   getKomgaCredentials,
   getShowContinueReading,
   getShowOnDeck,
+  getShowRecentlyAdded,
+  getShowRecentlyUpdated,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
 import { parseChapterTitle } from './utils/titles.js'
@@ -112,6 +116,26 @@ export const parseContentRating = (metadata: {
     return ContentRating.MATURE
   }
   return ContentRating.EVERYONE
+}
+
+// `/series/list` takes a search condition, so hidden genres are excluded by the
+// server. `/series/new` and `/series/updated` take no condition, so those get
+// filtered here instead.
+const hiddenGenreConditions = () => {
+  if (!getHideAdultContent()) {
+    return []
+  }
+  return getAdultGenres().map((genre) => ({ genre: isNotEqualTo(genre) }))
+}
+
+const isHiddenSeries = (metadata: { genres?: Array<string> }): boolean => {
+  if (!getHideAdultContent()) {
+    return false
+  }
+  const hidden = getAdultGenres()
+  return (metadata.genres ?? []).some((genre) =>
+    hidden.includes(genre.toLowerCase())
+  )
 }
 
 export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
@@ -386,7 +410,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     const page: number = metadata?.page ?? 0
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filters: any[] = []
+    const filters: any[] = [...hiddenGenreConditions()]
     for (const filter of searchQuery.metadata ?? []) {
       const value = filter.value
 
@@ -578,17 +602,21 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       })
     }
 
-    sections.push({
-      id: 'recentlyAdded',
-      title: 'Recently Added',
-      type: DiscoverSectionType.simpleCarousel,
-    })
+    if (getShowRecentlyAdded()) {
+      sections.push({
+        id: 'recentlyAdded',
+        title: 'Recently Added',
+        type: DiscoverSectionType.simpleCarousel,
+      })
+    }
 
-    sections.push({
-      id: 'recentlyUpdated',
-      title: 'Recently Updated',
-      type: DiscoverSectionType.simpleCarousel,
-    })
+    if (getShowRecentlyUpdated()) {
+      sections.push({
+        id: 'recentlyUpdated',
+        title: 'Recently Updated',
+        type: DiscoverSectionType.simpleCarousel,
+      })
+    }
 
     return sections
   }
@@ -630,8 +658,11 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
           body: {
             condition: {
-              deleted: isFalse(),
-              readStatus: isEqualTo('IN_PROGRESS'),
+              allOf: [
+                { deleted: isFalse() },
+                { readStatus: isEqualTo('IN_PROGRESS') },
+                ...hiddenGenreConditions(),
+              ],
             },
           },
         })
@@ -642,6 +673,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
 
         const items: DiscoverSectionItem[] = []
         for (const serie of data.content ?? []) {
+          if (isHiddenSeries(serie.metadata)) {
+            continue
+          }
+
           const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
 
           items.push({
@@ -670,6 +705,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
 
         const items: DiscoverSectionItem[] = []
         for (const serie of data.content ?? []) {
+          if (isHiddenSeries(serie.metadata)) {
+            continue
+          }
+
           const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
 
           items.push({
@@ -698,6 +737,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
 
         const items: DiscoverSectionItem[] = []
         for (const serie of data.content ?? []) {
+          if (isHiddenSeries(serie.metadata)) {
+            continue
+          }
+
           const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
 
           items.push({

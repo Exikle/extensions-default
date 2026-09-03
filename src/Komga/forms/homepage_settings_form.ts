@@ -7,8 +7,12 @@ import {
 import {
   getShowContinueReading,
   getShowOnDeck,
+  getShowRecentlyAdded,
+  getShowRecentlyUpdated,
   setShowContinueReading,
   setShowOnDeck,
+  setShowRecentlyAdded,
+  setShowRecentlyUpdated,
 } from '../utils/config.js'
 
 export class HomepageSettingsForm extends Form {
@@ -36,6 +40,22 @@ export class HomepageSettingsForm extends Form {
             'showContinueReadingDidChange'
           ),
         }),
+        ToggleRow('showRecentlyAdded', {
+          title: 'Recently Added',
+          value: getShowRecentlyAdded(),
+          onValueChange: Application.Selector(
+            this as HomepageSettingsForm,
+            'showRecentlyAddedDidChange'
+          ),
+        }),
+        ToggleRow('showRecentlyUpdated', {
+          title: 'Recently Updated',
+          value: getShowRecentlyUpdated(),
+          onValueChange: Application.Selector(
+            this as HomepageSettingsForm,
+            'showRecentlyUpdatedDidChange'
+          ),
+        }),
       ]
     )
   }
@@ -47,6 +67,16 @@ export class HomepageSettingsForm extends Form {
 
   async showContinueReadingDidChange(newValue: boolean): Promise<void> {
     setShowContinueReading(newValue)
+    Application.invalidateDiscoverSections()
+  }
+
+  async showRecentlyAddedDidChange(newValue: boolean): Promise<void> {
+    setShowRecentlyAdded(newValue)
+    Application.invalidateDiscoverSections()
+  }
+
+  async showRecentlyUpdatedDidChange(newValue: boolean): Promise<void> {
+    setShowRecentlyUpdated(newValue)
     Application.invalidateDiscoverSections()
   }
 }

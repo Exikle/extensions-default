@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-09-03T14:44:47.738Z",
+  "buildTime": "2026-09-03T14:52:00.468Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.89",
     "types": "1.0.0-alpha.89"
@@ -10,7 +10,7 @@
   },
   "sources": [
     {
-      "version": "3.9.1",
+      "version": "3.9.2",
       "name": "Komga",
       "icon": "icon.png",
       "developers": [
@@ -46,7 +46,7 @@
       "id": "Komga"
     },
     {
-      "version": "3.9.1",
+      "version": "3.9.2",
       "name": "Komga_2",
       "icon": "icon.png",
       "developers": [

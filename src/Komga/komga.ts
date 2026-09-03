@@ -376,25 +376,24 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           }
 
           const operator = filterValue == 'included' ? 'is' : 'isNot'
-          console.log(key)
           // There are two types of tags: `tag` and `genre`
           if (key.substring(0, 4) == 'tag-') {
-            const tag = encodeURIComponent(atob(key.substring(4)))
+            const tag = atob(key.substring(4))
             filters.push({ tag: { operator, value: tag } })
           }
 
           if (key.substring(0, 6) == 'genre-') {
-            const genre = encodeURIComponent(atob(key.substring(6)))
+            const genre = atob(key.substring(6))
             filters.push({ genre: { operator, value: genre } })
           }
 
           if (key.substring(0, 11) == 'collection-') {
-            const collectionId = encodeURIComponent(atob(key.substring(11)))
+            const collectionId = atob(key.substring(11))
             filters.push({ collectionId: { operator, value: collectionId } })
           }
 
           if (key.substring(0, 8) == 'library-') {
-            const libraryId = encodeURIComponent(atob(key.substring(8)))
+            const libraryId = atob(key.substring(8))
             filters.push({ libraryId: { operator, value: libraryId } })
           }
         }

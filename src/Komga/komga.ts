@@ -723,8 +723,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
 
     if (getShowFeatured()) {
       sections.push({
+        // id and settings key stay `featured` so existing toggle state
+        // survives; the title describes the content, not the card style
         id: 'featured',
-        title: 'Featured',
+        title: 'New Arrivals',
         type: DiscoverSectionType.featured,
       })
     }

@@ -63,8 +63,8 @@ export class HomepageSettingsForm extends Form {
           ),
         }),
         ToggleRow('showFeatured', {
-          title: 'Featured',
-          subtitle: 'Large cards for recently added series',
+          title: 'New Arrivals',
+          subtitle: 'Large cards, same series as Recently Added',
           value: getShowFeatured(),
           onValueChange: Application.Selector(
             this as HomepageSettingsForm,

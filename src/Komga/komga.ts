@@ -268,26 +268,23 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     // - `library`
     // To be able to make the difference between theses types, we append `genre-` or `tag-` at the beginning of the tag id
 
-    const { data: genresResult, error: genresError } = await getGenres()
-    if (!genresResult) {
-      throw new Error(JSON.stringify(genresError, undefined, 2))
-    }
-
-    const { data: tagsResult, error: tagsError } = await getSeriesTags()
-    if (!tagsResult) {
-      throw new Error(JSON.stringify(tagsError, undefined, 2))
-    }
-
-    const { data: collectionResult, error: collectionError } =
-      await getCollections()
-    if (!collectionResult) {
-      throw new Error(JSON.stringify(collectionError, undefined, 2))
-    }
-
-    const { data: libraryResult, error: libraryError } = await getLibraries()
-    if (!libraryResult) {
-      throw new Error(JSON.stringify(libraryError, undefined, 2))
-    }
+    // Each lookup falls back to an empty list so an unreachable server does not
+    // take down the homepage
+    const [genresResult, tagsResult, collectionResult, libraryResult] =
+      await Promise.all([
+        getGenres()
+          .then((r) => r.data ?? [])
+          .catch(() => []),
+        getSeriesTags()
+          .then((r) => r.data ?? [])
+          .catch(() => []),
+        getCollections()
+          .then((r) => r.data?.content ?? [])
+          .catch(() => []),
+        getLibraries()
+          .then((r) => r.data ?? [])
+          .catch(() => []),
+      ])
 
     const genreSearchFilter: SearchFilter = {
       type: 'multiselect',
@@ -324,11 +321,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       id: 'collections',
       title: 'Collections',
       maximum: undefined,
-      options:
-        collectionResult.content?.map((elem) => ({
-          id: 'collection-' + btoa(elem.id),
-          value: capitalize(elem.name),
-        })) ?? [],
+      options: collectionResult.map((elem) => ({
+        id: 'collection-' + btoa(elem.id),
+        value: capitalize(elem.name),
+      })),
       value: {},
     }
 

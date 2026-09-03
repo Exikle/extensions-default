@@ -13,7 +13,7 @@ import {
   setKomgaBaseURL,
   setKomgaCredentials,
 } from '../utils/config.js'
-import { getCurrentUser } from '../sdk/sdk.gen.js'
+import { checkKomgaConnection } from '../utils/connection.js'
 
 export class ServerSettingsForm extends Form {
   baseUrl = getKomgaBaseURL()
@@ -102,48 +102,12 @@ export class ServerSettingsForm extends Form {
     this.connectionStatus = { text: 'Checking...', style: 'tinted' }
     this.reloadForm()
 
-    try {
-      const { data, error, response } = await getCurrentUser({
-        baseUrl: this.baseUrl,
-        auth: (auth) =>
-          auth.scheme === 'basic'
-            ? `${this.credentials.username}:${this.credentials.password}`
-            : undefined,
-      })
-
-      if (!error && data) {
-        this.connectionStatus = {
-          text: `Connected as ${data.email}`,
-          style: 'success',
-        }
-      } else {
-        this.connectionStatus = {
-          text: this.describeFailure(response?.status),
-          style: 'error',
-        }
-      }
-    } catch {
-      this.connectionStatus = {
-        text: `Could not reach ${this.baseUrl}`,
-        style: 'error',
-      }
-    }
-
+    const { ok, message } = await checkKomgaConnection(
+      this.baseUrl,
+      this.credentials
+    )
+    this.connectionStatus = { text: message, style: ok ? 'success' : 'error' }
     this.reloadForm()
-  }
-
-  private describeFailure(status: number | undefined): string {
-    switch (status) {
-      case undefined:
-        return `Could not reach ${this.baseUrl}`
-      case 401:
-      case 403:
-        return 'Invalid credentials'
-      case 404:
-        return 'No Komga server at that URL'
-      default:
-        return `Server returned ${status}`
-    }
   }
 
   override getSections(): FormSectionElement<unknown>[] {
@@ -158,45 +122,16 @@ export class ServerSettingsForm extends Form {
   override requiresExplicitSubmission: boolean = true
 
   override async formDidSubmit(): Promise<void> {
-    const { error, response } = await getCurrentUser({
-      baseUrl: this.baseUrl,
-      auth: (auth) => {
-        if (auth.scheme === 'basic') {
-          return `${this.credentials.username}:${this.credentials.password}`
-        } else {
-          return undefined
-        }
-      },
-    })
+    const { ok, message } = await checkKomgaConnection(
+      this.baseUrl,
+      this.credentials
+    )
 
-    if (!error) {
-      setKomgaBaseURL(this.baseUrl)
-      setKomgaCredentials(this.credentials.username, this.credentials.password)
-      return
+    if (!ok) {
+      throw new Error(message)
     }
 
-    // Only a 400 is typed as carrying `violations`; every other failure (401,
-    // 5xx, an unreachable host) has no such field, so reaching for it here
-    // threw a TypeError instead of showing the real problem.
-    switch (response?.status) {
-      case undefined: {
-        throw new Error(`Could not reach ${this.baseUrl}. Check the URL.`)
-      }
-      case 401:
-      case 403: {
-        throw new Error(`Error ${response.status}: invalid credentials`)
-      }
-      case 404: {
-        throw new Error(
-          `Error 404: no Komga server at ${this.baseUrl}. Check the URL.`
-        )
-      }
-      default: {
-        const violations = error?.violations?.map((x) => x.message).join('\n')
-        throw new Error(
-          `Error ${response.status}${violations ? `: ${violations}` : ''}`
-        )
-      }
-    }
+    setKomgaBaseURL(this.baseUrl)
+    setKomgaCredentials(this.credentials.username, this.credentials.password)
   }
 }

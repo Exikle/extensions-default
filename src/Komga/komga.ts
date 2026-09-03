@@ -81,15 +81,34 @@ export const capitalize = (tag: string): string => {
   return tag.replace(/^\w/, (c) => c.toUpperCase())
 }
 
-// Komga stores an age rating as a minimum age
-export const parseContentRating = (ageRating?: number): ContentRating => {
-  if (ageRating === undefined) {
+// Komga libraries rarely set ageRating, so genres are the usable signal. These
+// are matched case-insensitively against SeriesMetadataDto.genres.
+const ADULT_GENRES = ['adult', 'hentai', 'smut', 'erotica', 'pornographic']
+const MATURE_GENRES = ['mature', 'ecchi']
+
+// ageRating is a minimum age when set; otherwise fall back to genres
+export const parseContentRating = (metadata: {
+  ageRating?: number
+  genres?: Array<string>
+}): ContentRating => {
+  // Komga sends `ageRating: null` on the wire even though the generated type
+  // declares it optional, so check the runtime type rather than for undefined
+  const { ageRating } = metadata
+  if (typeof ageRating === 'number') {
+    if (ageRating >= 18) {
+      return ContentRating.ADULT
+    }
+    if (ageRating >= 16) {
+      return ContentRating.MATURE
+    }
     return ContentRating.EVERYONE
   }
-  if (ageRating >= 18) {
+
+  const genres = (metadata.genres ?? []).map((genre) => genre.toLowerCase())
+  if (genres.some((genre) => ADULT_GENRES.includes(genre))) {
     return ContentRating.ADULT
   }
-  if (ageRating >= 16) {
+  if (genres.some((genre) => MATURE_GENRES.includes(genre))) {
     return ContentRating.MATURE
   }
   return ContentRating.EVERYONE
@@ -244,7 +263,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         thumbnailUrl: thumbnailUrl,
         primaryTitle: metadata.title,
         secondaryTitles: metadata.alternateTitles.map((alt) => alt.title),
-        contentRating: parseContentRating(metadata.ageRating),
+        contentRating: parseContentRating(metadata),
         status: parseMangaStatus(metadata.status),
         artist: artists.join(', '),
         author: authors.join(', '),
@@ -254,6 +273,10 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           language: metadata.language,
           readingDirection: metadata.readingDirection,
           publisher: metadata.publisher,
+          books: String(result.booksCount),
+          booksRead: String(result.booksReadCount),
+          booksUnread: String(result.booksUnreadCount),
+          booksInProgress: String(result.booksInProgressCount),
         },
       },
     }
@@ -432,6 +455,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         title: serie.metadata.title,
         mangaId: serie.id,
         subtitle: undefined,
+        contentRating: parseContentRating(serie.metadata),
       })
     }
 
@@ -626,6 +650,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
             imageUrl: thumbnailUrl,
             mangaId: serie.id,
             subtitle: undefined,
+            contentRating: parseContentRating(serie.metadata),
           })
         }
 
@@ -653,6 +678,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
             imageUrl: thumbnailUrl,
             mangaId: serie.id,
             subtitle: undefined,
+            contentRating: parseContentRating(serie.metadata),
           })
         }
 
@@ -680,6 +706,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
             imageUrl: thumbnailUrl,
             mangaId: serie.id,
             subtitle: undefined,
+            contentRating: parseContentRating(serie.metadata),
           })
         }
 

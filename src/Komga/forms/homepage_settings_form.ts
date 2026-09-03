@@ -8,10 +8,12 @@ import {
   getShowContinueReading,
   getShowOnDeck,
   getShowRecentlyAdded,
+  getShowGenres,
   getShowRecentlyUpdated,
   setShowContinueReading,
   setShowOnDeck,
   setShowRecentlyAdded,
+  setShowGenres,
   setShowRecentlyUpdated,
 } from '../utils/config.js'
 
@@ -56,6 +58,14 @@ export class HomepageSettingsForm extends Form {
             'showRecentlyUpdatedDidChange'
           ),
         }),
+        ToggleRow('showGenres', {
+          title: 'Genres',
+          value: getShowGenres(),
+          onValueChange: Application.Selector(
+            this as HomepageSettingsForm,
+            'showGenresDidChange'
+          ),
+        }),
       ]
     )
   }
@@ -77,6 +87,11 @@ export class HomepageSettingsForm extends Form {
 
   async showRecentlyUpdatedDidChange(newValue: boolean): Promise<void> {
     setShowRecentlyUpdated(newValue)
+    Application.invalidateDiscoverSections()
+  }
+
+  async showGenresDidChange(newValue: boolean): Promise<void> {
+    setShowGenres(newValue)
     Application.invalidateDiscoverSections()
   }
 }

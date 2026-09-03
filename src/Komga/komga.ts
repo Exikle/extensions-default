@@ -64,6 +64,7 @@ import {
   getShowContinueReading,
   getShowOnDeck,
   getShowRecentlyAdded,
+  getShowGenres,
   getShowRecentlyUpdated,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
@@ -732,6 +733,14 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
       })
     }
 
+    if (getShowGenres()) {
+      sections.push({
+        id: 'genres',
+        title: 'Genres',
+        type: DiscoverSectionType.genres,
+      })
+    }
+
     return sections
   }
 
@@ -871,6 +880,33 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           items,
           metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
         }
+      }
+      case 'genres': {
+        const genres = await getGenres()
+          .then((r) => r.data ?? [])
+          .catch(() => [])
+
+        const hidden = getHideAdultContent() ? getAdultGenres() : []
+
+        const items: DiscoverSectionItem[] = genres
+          .filter((genre) => !hidden.includes(genre.toLowerCase()))
+          .map((genre) => ({
+            type: 'genresCarouselItem' as const,
+            name: capitalize(genre),
+            // Tapping runs a normal search; the shape here has to match what
+            // getSearchResults reads out of `metadata`
+            searchQuery: {
+              title: '',
+              metadata: [
+                {
+                  id: 'genre',
+                  value: { ['genre-' + btoa(genre)]: 'included' as const },
+                },
+              ],
+            },
+          }))
+
+        return { items, metadata: undefined }
       }
       default: {
         throw new Error('Unknown section')

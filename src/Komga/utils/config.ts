@@ -5,6 +5,7 @@ const KEY_SHOW_ON_DECK = 'showOnDeck'
 const KEY_SHOW_CONTINUE_READING = 'showContinueReading'
 const KEY_SHOW_RECENTLY_ADDED = 'showRecentlyAdded'
 const KEY_SHOW_RECENTLY_UPDATED = 'showRecentlyUpdated'
+const KEY_SHOW_GENRES = 'showGenres'
 const KEY_HIDE_ADULT_CONTENT = 'hideAdultContent'
 const KEY_ADULT_GENRES = 'adultGenres'
 
@@ -15,6 +16,7 @@ const DEFAULT_SHOW_ON_DECK = true
 const DEFAULT_SHOW_CONTINUE_READING = true
 const DEFAULT_SHOW_RECENTLY_ADDED = true
 const DEFAULT_SHOW_RECENTLY_UPDATED = true
+const DEFAULT_SHOW_GENRES = true
 const DEFAULT_HIDE_ADULT_CONTENT = false
 // Matched case-insensitively against a series' genres
 const DEFAULT_ADULT_GENRES = [
@@ -112,4 +114,12 @@ export function getAdultGenres(): string[] {
 
 export function setAdultGenres(newValue: string[]) {
   Application.setState(newValue, KEY_ADULT_GENRES)
+}
+
+export function getShowGenres() {
+  return getStateOrDefault(KEY_SHOW_GENRES, DEFAULT_SHOW_GENRES)
+}
+
+export function setShowGenres(newValue: boolean) {
+  Application.setState(newValue, KEY_SHOW_GENRES)
 }

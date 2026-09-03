@@ -11,7 +11,7 @@ const DEFAULT_SHOW_ON_DECK = true
 const DEFAULT_SHOW_CONTINUE_READING = true
 
 function getStateOrDefault<T>(key: string, def: T): T {
-  return Application.getState(key) as T ?? def
+  return (Application.getState(key) as T) ?? def
 }
 
 export function getKomgaBaseURL() {
@@ -24,8 +24,12 @@ export function setKomgaBaseURL(url: string) {
 
 export function getKomgaCredentials() {
   return {
-    username: Application.getSecureState(KEY_KOMGA_USERNAME) as string ?? DEFAULT_KOMGA_USERNAME,
-    password: Application.getSecureState(KEY_KOMGA_PASSWORD) as string ?? DEFAULT_KOMGA_PASSWORD,
+    username:
+      (Application.getSecureState(KEY_KOMGA_USERNAME) as string) ??
+      DEFAULT_KOMGA_USERNAME,
+    password:
+      (Application.getSecureState(KEY_KOMGA_PASSWORD) as string) ??
+      DEFAULT_KOMGA_PASSWORD,
   }
 }
 
@@ -33,7 +37,6 @@ export function setKomgaCredentials(username: string, password: string) {
   Application.setSecureState(username, KEY_KOMGA_USERNAME)
   Application.setSecureState(password, KEY_KOMGA_PASSWORD)
 }
-
 
 export function getShowOnDeck() {
   return getStateOrDefault(KEY_SHOW_ON_DECK, DEFAULT_SHOW_ON_DECK)
@@ -44,7 +47,10 @@ export function setShowOnDeck(newValue: boolean) {
 }
 
 export function getShowContinueReading() {
-  return getStateOrDefault(KEY_SHOW_CONTINUE_READING, DEFAULT_SHOW_CONTINUE_READING)
+  return getStateOrDefault(
+    KEY_SHOW_CONTINUE_READING,
+    DEFAULT_SHOW_CONTINUE_READING
+  )
 }
 
 export function setShowContinueReading(newValue: boolean) {

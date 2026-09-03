@@ -57,12 +57,15 @@ export class ContentSettingsForm extends Form {
           }),
           SelectRow('adultGenres', {
             title: 'Genres To Hide',
-            value: this.adultGenres,
+            // Row ids may only use `._-@()[]%?#+=/&:`, so a genre like
+            // `martial arts` has to be encoded. base64 is what the search
+            // filters already use and its alphabet is within that set.
+            value: this.adultGenres.map(btoa),
             minItemCount: 0,
             maxItemCount: this.availableGenres.length,
             layout: 'list',
             items: this.availableGenres.map((genre) => ({
-              id: genre,
+              id: btoa(genre),
               title: genre,
             })),
             onValueChange: Application.Selector(
@@ -83,8 +86,9 @@ export class ContentSettingsForm extends Form {
   }
 
   async adultGenresDidChange(newValue: string[]): Promise<void> {
-    this.adultGenres = newValue
-    setAdultGenres(newValue)
+    const genres = newValue.map(atob)
+    this.adultGenres = genres
+    setAdultGenres(genres)
     Application.invalidateDiscoverSections()
     this.reloadForm()
   }

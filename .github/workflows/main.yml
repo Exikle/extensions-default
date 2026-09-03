@@ -1,6 +1,4 @@
-on:
-  push:
-  pull_request:
+on: push
 name: Bundle and Publish Sources
 jobs:
   build:
@@ -23,7 +21,6 @@ jobs:
         id: extract_branch
 
       - name: Checkout existing bundles
-        if: github.event_name == 'push'
         uses: actions/checkout@v5
         continue-on-error: true
         with:
@@ -32,14 +29,9 @@ jobs:
 
       - run: npm ci
       - run: npm run check
-
-      # Pull requests stop at the checks above; only pushes publish
-      - name: Bundle
-        if: github.event_name == 'push'
-        run: npm run bundle -- --folder=${{ steps.extract_branch.outputs.branch }}
+      - run: npm run bundle -- --folder=${{ steps.extract_branch.outputs.branch }}
 
       - name: Deploy to GitHub Pages
-        if: github.event_name == 'push'
         uses: JamesIves/github-pages-deploy-action@v4.7.3
         with:
           branch: gh-pages

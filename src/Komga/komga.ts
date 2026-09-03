@@ -56,12 +56,15 @@ import {
 import { client } from './sdk/client.gen.js'
 import { KomgaImageInterceptor } from './interceptors/image_interceptor.js'
 import { isEqualTo, isFalse, isNotEqualTo, Operator } from './utils.js'
+import type { AllOfSeries } from './sdk/types.gen.js'
 import {
   getAdultGenres,
   getHideAdultContent,
   getKomgaBaseURL,
   getKomgaCredentials,
+  getIncludeOneshots,
   getSectionStyle,
+  getSelectedLibraries,
   type SectionStyle,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
@@ -205,6 +208,33 @@ const hiddenSeriesIds = async (): Promise<Set<string>> => {
   }).catch(() => ({ data: undefined }))
 
   return new Set((data?.content ?? []).map((serie) => serie.id))
+}
+
+// Library scope and one-shot inclusion apply to every browse query. The
+// discover endpoints take them as query params; /series/list takes conditions.
+const scopeQuery = () => {
+  const libraries = getSelectedLibraries()
+  return {
+    ...(libraries.length > 0 ? { library_id: libraries } : {}),
+    ...(getIncludeOneshots() ? {} : { oneshot: false }),
+  }
+}
+
+const scopeConditions = () => {
+  const libraries = getSelectedLibraries()
+  const conditions: AllOfSeries['allOf'] = []
+
+  if (libraries.length > 0) {
+    conditions.push({
+      anyOf: libraries.map((id) => ({ libraryId: isEqualTo(id) })),
+    })
+  }
+
+  if (!getIncludeOneshots()) {
+    conditions.push({ oneShot: isFalse() })
+  }
+
+  return conditions
 }
 
 const isHiddenSeries = (metadata: { genres?: Array<string> }): boolean => {
@@ -497,7 +527,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     const page: number = metadata?.page ?? 0
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const filters: any[] = [...hiddenGenreConditions()]
+    const filters: any[] = [...hiddenGenreConditions(), ...scopeConditions()]
     for (const filter of searchQuery.metadata ?? []) {
       const value = filter.value
 
@@ -810,7 +840,9 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
 
     switch (section.id) {
       case 'onDeck': {
-        const { data, error } = await getBooksOnDeck({ query: { page } })
+        const { data, error } = await getBooksOnDeck({
+          query: { page, ...scopeQuery() },
+        })
         if (!data) {
           throw new Error(JSON.stringify(error, undefined, 2))
         }
@@ -849,6 +881,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
                 { deleted: isFalse() },
                 { readStatus: isEqualTo('IN_PROGRESS') },
                 ...hiddenGenreConditions(),
+                ...scopeConditions(),
               ],
             },
           },
@@ -864,12 +897,41 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
         }
       }
+      case 'nearlyFinished': {
+        // Komga ignores booksUnreadCount as a sort field, so order it here.
+        // The set is bounded by what the user is actually reading, which keeps
+        // the unpaged fetch cheap.
+        const { data, error } = await getSeriesList({
+          query: { unpaged: true },
+          body: {
+            condition: {
+              allOf: [
+                { deleted: isFalse() },
+                { readStatus: isEqualTo('IN_PROGRESS') },
+                ...hiddenGenreConditions(),
+                ...scopeConditions(),
+              ],
+            },
+          },
+        })
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items = (data.content ?? [])
+          .filter((serie) => serie.booksUnreadCount > 0)
+          .sort((a, b) => a.booksUnreadCount - b.booksUnreadCount)
+          .slice(0, PAGE_SIZE)
+          .map((serie) => this.seriesItem(serie, style))
+
+        return { items, metadata: undefined }
+      }
       case 'recentlyAdded':
       case 'recentlyUpdated': {
         const fetch =
           section.id === 'recentlyAdded' ? getSeriesNew : getSeriesUpdated
         const { data, error } = await fetch({
-          query: { page, deleted: false },
+          query: { page, deleted: false, ...scopeQuery() },
         })
         if (!data) {
           throw new Error(JSON.stringify(error, undefined, 2))

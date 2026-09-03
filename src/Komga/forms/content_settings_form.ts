@@ -8,10 +8,14 @@ import {
 import {
   getAdultGenres,
   getHideAdultContent,
+  getIncludeOneshots,
+  getSelectedLibraries,
   setAdultGenres,
   setHideAdultContent,
+  setIncludeOneshots,
+  setSelectedLibraries,
 } from '../utils/config.js'
-import { getGenres } from '../sdk/index.js'
+import { getGenres, getLibraries } from '../sdk/index.js'
 
 export class ContentSettingsForm extends Form {
   private hideAdultContent = getHideAdultContent()
@@ -19,9 +23,23 @@ export class ContentSettingsForm extends Form {
   // Populated from the server; getSections is sync so the fetch happens in
   // formWillAppear and reloads the form when it lands
   private availableGenres: string[] = []
+  private selectedLibraries = getSelectedLibraries()
+  private availableLibraries: Array<{ id: string; name: string }> = []
+  private includeOneshots = getIncludeOneshots()
 
   override formWillAppear(): void {
-    void this.loadGenres()
+    void this.load()
+  }
+
+  private async load(): Promise<void> {
+    await Promise.all([this.loadGenres(), this.loadLibraries()])
+    this.reloadForm()
+  }
+
+  private async loadLibraries(): Promise<void> {
+    this.availableLibraries = await getLibraries()
+      .then((r) => (r.data ?? []).map((l) => ({ id: l.id, name: l.name })))
+      .catch(() => [])
   }
 
   private async loadGenres(): Promise<void> {
@@ -34,8 +52,6 @@ export class ContentSettingsForm extends Form {
     this.availableGenres = [
       ...new Set([...genres.map((g) => g.toLowerCase()), ...this.adultGenres]),
     ].sort()
-
-    this.reloadForm()
   }
 
   override getSections(): FormSectionElement<unknown>[] {
@@ -75,7 +91,65 @@ export class ContentSettingsForm extends Form {
           }),
         ]
       ),
+
+      Section(
+        {
+          id: 'libraries',
+          header: 'Libraries',
+          footer:
+            'Restrict browsing and search to these libraries. Selecting none includes every library.',
+        },
+        [
+          SelectRow('selectedLibraries', {
+            title: 'Libraries',
+            value: this.selectedLibraries,
+            minItemCount: 0,
+            maxItemCount: this.availableLibraries.length,
+            layout: 'list',
+            items: this.availableLibraries.map((library) => ({
+              id: library.id,
+              title: library.name,
+            })),
+            onValueChange: Application.Selector(
+              this as ContentSettingsForm,
+              'selectedLibrariesDidChange'
+            ),
+          }),
+        ]
+      ),
+
+      Section(
+        {
+          id: 'oneshots',
+          footer:
+            'One-shots are single-volume works Komga tracks separately from serialised series.',
+        },
+        [
+          ToggleRow('includeOneshots', {
+            title: 'Include One-Shots',
+            value: this.includeOneshots,
+            onValueChange: Application.Selector(
+              this as ContentSettingsForm,
+              'includeOneshotsDidChange'
+            ),
+          }),
+        ]
+      ),
     ]
+  }
+
+  async selectedLibrariesDidChange(newValue: string[]): Promise<void> {
+    this.selectedLibraries = newValue
+    setSelectedLibraries(newValue)
+    Application.invalidateDiscoverSections()
+    this.reloadForm()
+  }
+
+  async includeOneshotsDidChange(newValue: boolean): Promise<void> {
+    this.includeOneshots = newValue
+    setIncludeOneshots(newValue)
+    Application.invalidateDiscoverSections()
+    this.reloadForm()
   }
 
   async hideAdultContentDidChange(newValue: boolean): Promise<void> {

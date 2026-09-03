@@ -130,3 +130,28 @@ export function getSectionStyle(sectionId: string): SectionStyle {
 export function setSectionStyle(sectionId: string, style: SectionStyle) {
   Application.setState(style, styleKey(sectionId))
 }
+
+const KEY_SELECTED_LIBRARIES = 'selectedLibraries'
+const KEY_INCLUDE_ONESHOTS = 'includeOneshots'
+
+/** Library ids to restrict browsing to. Empty means every library. */
+export function getSelectedLibraries(): string[] {
+  const stored = Application.getState(KEY_SELECTED_LIBRARIES)
+  return Array.isArray(stored) ? (stored as string[]) : []
+}
+
+export function setSelectedLibraries(newValue: string[]) {
+  Application.setState(newValue, KEY_SELECTED_LIBRARIES)
+}
+
+/**
+ * Endpoints take `oneshot` as an optional tri-state, where leaving it unset
+ * returns both. Only pass `false` when one-shots are being excluded.
+ */
+export function getIncludeOneshots(): boolean {
+  return (Application.getState(KEY_INCLUDE_ONESHOTS) as boolean) ?? true
+}
+
+export function setIncludeOneshots(newValue: boolean) {
+  Application.setState(newValue, KEY_INCLUDE_ONESHOTS)
+}

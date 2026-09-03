@@ -20,6 +20,11 @@ export const DISCOVER_SECTIONS: DiscoverSectionDefinition[] = [
     description: 'Series you are part way through',
   },
   {
+    id: 'nearlyFinished',
+    title: 'Nearly Finished',
+    description: 'Series you have the fewest unread books left in',
+  },
+  {
     id: 'recentlyAdded',
     title: 'Recently Added Series',
     description: 'Series most recently added to the library',

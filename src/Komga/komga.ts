@@ -34,6 +34,7 @@ import {
   type SearchResultItem,
   type SortingOption,
   type SourceManga,
+  type UpdateManager,
   type TagSection,
   type TrackedMangaChapterReadAction,
 } from '@paperback/types'
@@ -123,6 +124,14 @@ export const parseContentRating = (metadata: {
 // every entry here was checked against a live server by confirming asc and desc
 // actually differ. `titleSort`, `releaseDate` and `folderName` are all ignored;
 // the working title field is `metadata.titleSort`.
+// A series' lastModified can trail its books' created time by a few seconds
+// when both are written during one library scan, so look slightly further back
+// than the app's last check to avoid skipping a series that did gain chapters.
+const UPDATE_CHECK_MARGIN_MS = 60 * 60 * 1000
+
+// Guards the paging loop; far more than a sane library needs in one pass
+const MAX_UPDATE_PAGES = 50
+
 const DEFAULT_SORT = 'metadata.titleSort,asc'
 
 const SORT_OPTIONS: Array<SortingOption & { sort: string }> = [
@@ -591,6 +600,60 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
     }
 
     return chapters
+  }
+
+  // Komga has no "changed since" search condition, but /series/updated is
+  // ordered by lastModified descending, so we can page until we pass the
+  // cutoff and mark everything untouched as skippable.
+  async processTitlesForUpdates(
+    updateManager: UpdateManager,
+    lastUpdateDate?: Date
+  ): Promise<void> {
+    const queued = updateManager.getQueuedItems()
+
+    // With no previous run there is nothing to compare against, so leave the
+    // app to check everything as it normally would
+    if (queued.length === 0 || !lastUpdateDate) {
+      return
+    }
+
+    const cutoff = new Date(lastUpdateDate.getTime() - UPDATE_CHECK_MARGIN_MS)
+    const updated = new Set<string>()
+
+    for (let page = 0; page < MAX_UPDATE_PAGES; page++) {
+      const { data } = await getSeriesUpdated({
+        query: { page, size: PAGE_SIZE, deleted: false },
+      }).catch(() => ({ data: undefined }))
+
+      // A failed request tells us nothing about what changed. Returning here
+      // leaves every title at its default priority; marking them skipped would
+      // silently swallow real updates.
+      if (!data) {
+        return
+      }
+
+      const content = data.content ?? []
+      const stale = content.find(
+        (serie) => new Date(serie.lastModified) <= cutoff
+      )
+
+      for (const serie of content) {
+        if (new Date(serie.lastModified) > cutoff) {
+          updated.add(serie.id)
+        }
+      }
+
+      if (stale || data.last) {
+        break
+      }
+    }
+
+    for (const manga of queued) {
+      await updateManager.setUpdatePriority(
+        manga.mangaId,
+        updated.has(manga.mangaId) ? 'high' : 'skip'
+      )
+    }
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {

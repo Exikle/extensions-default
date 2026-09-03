@@ -8,12 +8,16 @@ import {
   getShowContinueReading,
   getShowOnDeck,
   getShowRecentlyAdded,
+  getShowFeatured,
   getShowGenres,
+  getShowProminent,
   getShowRecentlyUpdated,
   setShowContinueReading,
   setShowOnDeck,
   setShowRecentlyAdded,
+  setShowFeatured,
   setShowGenres,
+  setShowProminent,
   setShowRecentlyUpdated,
 } from '../utils/config.js'
 
@@ -58,6 +62,24 @@ export class HomepageSettingsForm extends Form {
             'showRecentlyUpdatedDidChange'
           ),
         }),
+        ToggleRow('showFeatured', {
+          title: 'Featured',
+          subtitle: 'Large cards for recently added series',
+          value: getShowFeatured(),
+          onValueChange: Application.Selector(
+            this as HomepageSettingsForm,
+            'showFeaturedDidChange'
+          ),
+        }),
+        ToggleRow('showProminent', {
+          title: 'Pick Up Where You Left Off',
+          subtitle: 'Overlaps Continue Reading',
+          value: getShowProminent(),
+          onValueChange: Application.Selector(
+            this as HomepageSettingsForm,
+            'showProminentDidChange'
+          ),
+        }),
         ToggleRow('showGenres', {
           title: 'Genres',
           value: getShowGenres(),
@@ -87,6 +109,16 @@ export class HomepageSettingsForm extends Form {
 
   async showRecentlyUpdatedDidChange(newValue: boolean): Promise<void> {
     setShowRecentlyUpdated(newValue)
+    Application.invalidateDiscoverSections()
+  }
+
+  async showFeaturedDidChange(newValue: boolean): Promise<void> {
+    setShowFeatured(newValue)
+    Application.invalidateDiscoverSections()
+  }
+
+  async showProminentDidChange(newValue: boolean): Promise<void> {
+    setShowProminent(newValue)
     Application.invalidateDiscoverSections()
   }
 

@@ -5,6 +5,8 @@ const KEY_SHOW_ON_DECK = 'showOnDeck'
 const KEY_SHOW_CONTINUE_READING = 'showContinueReading'
 const KEY_SHOW_RECENTLY_ADDED = 'showRecentlyAdded'
 const KEY_SHOW_RECENTLY_UPDATED = 'showRecentlyUpdated'
+const KEY_SHOW_FEATURED = 'showFeatured'
+const KEY_SHOW_PROMINENT = 'showProminent'
 const KEY_SHOW_GENRES = 'showGenres'
 const KEY_HIDE_ADULT_CONTENT = 'hideAdultContent'
 const KEY_ADULT_GENRES = 'adultGenres'
@@ -16,6 +18,8 @@ const DEFAULT_SHOW_ON_DECK = true
 const DEFAULT_SHOW_CONTINUE_READING = true
 const DEFAULT_SHOW_RECENTLY_ADDED = true
 const DEFAULT_SHOW_RECENTLY_UPDATED = true
+const DEFAULT_SHOW_FEATURED = false
+const DEFAULT_SHOW_PROMINENT = false
 const DEFAULT_SHOW_GENRES = true
 const DEFAULT_HIDE_ADULT_CONTENT = false
 // Matched case-insensitively against a series' genres
@@ -122,4 +126,20 @@ export function getShowGenres() {
 
 export function setShowGenres(newValue: boolean) {
   Application.setState(newValue, KEY_SHOW_GENRES)
+}
+
+export function getShowFeatured() {
+  return getStateOrDefault(KEY_SHOW_FEATURED, DEFAULT_SHOW_FEATURED)
+}
+
+export function setShowFeatured(newValue: boolean) {
+  Application.setState(newValue, KEY_SHOW_FEATURED)
+}
+
+export function getShowProminent() {
+  return getStateOrDefault(KEY_SHOW_PROMINENT, DEFAULT_SHOW_PROMINENT)
+}
+
+export function setShowProminent(newValue: boolean) {
+  Application.setState(newValue, KEY_SHOW_PROMINENT)
 }

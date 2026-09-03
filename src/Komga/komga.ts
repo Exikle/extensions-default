@@ -64,7 +64,9 @@ import {
   getShowContinueReading,
   getShowOnDeck,
   getShowRecentlyAdded,
+  getShowFeatured,
   getShowGenres,
+  getShowProminent,
   getShowRecentlyUpdated,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
@@ -698,6 +700,14 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     const sections: DiscoverSection[] = []
 
+    if (getShowFeatured()) {
+      sections.push({
+        id: 'featured',
+        title: 'Featured',
+        type: DiscoverSectionType.featured,
+      })
+    }
+
     const showOnDeck = getShowOnDeck()
     const showContinueReading = getShowContinueReading()
 
@@ -730,6 +740,14 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         id: 'recentlyUpdated',
         title: 'Recently Updated',
         type: DiscoverSectionType.simpleCarousel,
+      })
+    }
+
+    if (getShowProminent()) {
+      sections.push({
+        id: 'prominent',
+        title: 'Pick Up Where You Left Off',
+        type: DiscoverSectionType.prominentCarousel,
       })
     }
 
@@ -872,6 +890,84 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
             imageUrl: thumbnailUrl,
             mangaId: serie.id,
             subtitle: undefined,
+            contentRating: parseContentRating(serie.metadata),
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      case 'featured': {
+        const { data, error } = await getSeriesNew({
+          query: { page: metadata?.page, deleted: false },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          if (isHiddenSeries(serie.metadata)) {
+            continue
+          }
+
+          items.push({
+            type: 'featuredCarouselItem',
+            mangaId: serie.id,
+            title: serie.metadata.title,
+            imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
+            supertitle: [
+              parseMangaStatus(serie.metadata.status).toUpperCase(),
+              serie.metadata.publisher,
+            ]
+              .filter(Boolean)
+              .join(' \u00b7 '),
+            summary: serie.metadata.summary,
+            infoItems: [
+              { symbol: 'book.fill', text: `${serie.booksCount}` },
+              {
+                symbol: 'checkmark.circle.fill',
+                text: `${serie.booksReadCount} read`,
+              },
+            ],
+            contentRating: parseContentRating(serie.metadata),
+          })
+        }
+
+        return {
+          items,
+          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+        }
+      }
+      case 'prominent': {
+        const { data, error } = await getSeriesList({
+          query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
+          body: {
+            condition: {
+              allOf: [
+                { deleted: isFalse() },
+                { readStatus: isEqualTo('IN_PROGRESS') },
+                ...hiddenGenreConditions(),
+              ],
+            },
+          },
+        })
+
+        if (!data) {
+          throw new Error(JSON.stringify(error, undefined, 2))
+        }
+
+        const items: DiscoverSectionItem[] = []
+        for (const serie of data.content ?? []) {
+          items.push({
+            type: 'prominentCarouselItem',
+            mangaId: serie.id,
+            title: serie.name,
+            imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
+            subtitle: `${serie.booksReadCount} of ${serie.booksCount} read`,
             contentRating: parseContentRating(serie.metadata),
           })
         }

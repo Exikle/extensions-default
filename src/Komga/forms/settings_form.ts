@@ -18,7 +18,7 @@ export class SettingsForm extends Form {
       ]),
 
       Section('homepageSettings', [
-        NavigationRow('authentication', {
+        NavigationRow('homepageSettings', {
           title: 'Homepage Settings',
           form: new HomepageSettingsForm(),
         }),

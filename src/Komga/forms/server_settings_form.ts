@@ -62,6 +62,7 @@ export class ServerSettingsForm extends Form {
         InputRow('password', {
           title: 'Password',
           value: this.credentials.password,
+          isSecureEntry: true,
           onValueChange: Application.Selector(
             this as ServerSettingsForm,
             'passwordDidChange'
@@ -96,13 +97,26 @@ export class ServerSettingsForm extends Form {
       return
     }
 
-    switch (response.status) {
-      case 401: {
-        throw new Error('Error 401 Unauthorized: Invalid credentials')
+    // Only a 400 is typed as carrying `violations`; every other failure (401,
+    // 5xx, an unreachable host) has no such field, so reaching for it here
+    // threw a TypeError instead of showing the real problem.
+    switch (response?.status) {
+      case undefined: {
+        throw new Error(`Could not reach ${this.baseUrl}. Check the URL.`)
+      }
+      case 401:
+      case 403: {
+        throw new Error(`Error ${response.status}: invalid credentials`)
+      }
+      case 404: {
+        throw new Error(
+          `Error 404: no Komga server at ${this.baseUrl}. Check the URL.`
+        )
       }
       default: {
+        const violations = error?.violations?.map((x) => x.message).join('\n')
         throw new Error(
-          `Error ${response.status}: ${error.violations.map((x) => x.message).join('\n')}`
+          `Error ${response.status}${violations ? `: ${violations}` : ''}`
         )
       }
     }

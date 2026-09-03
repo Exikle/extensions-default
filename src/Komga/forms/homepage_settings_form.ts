@@ -18,7 +18,7 @@ export class HomepageSettingsForm extends Form {
 
   staticHomepageSection(): FormSectionElement<unknown> {
     return Section(
-      { id: 'staticHomepageSection', header: 'Static Hompage Sections' },
+      { id: 'staticHomepageSection', header: 'Static Homepage Sections' },
       [
         ToggleRow('showOnDeck', {
           title: 'On Deck',

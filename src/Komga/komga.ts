@@ -118,6 +118,29 @@ export const parseContentRating = (metadata: {
   return ContentRating.EVERYONE
 }
 
+// Preferred targets for the app's share action, best first. Komga records many
+// links per series; anything not listed here is used only as a last resort.
+const SHARE_LINK_PREFERENCE = [
+  'anilist',
+  'mangadex',
+  'mangaupdates',
+  'myanimelist',
+]
+
+const pickShareUrl = (
+  links: Array<{ label: string; url: string }>
+): string | undefined => {
+  for (const preferred of SHARE_LINK_PREFERENCE) {
+    const match = links.find(
+      (link) => link.label.toLowerCase().replace(/\s+/g, '') === preferred
+    )
+    if (match) {
+      return match.url
+    }
+  }
+  return links[0]?.url
+}
+
 // `/series/list` takes a search condition, so hidden genres are excluded by the
 // server. `/series/new` and `/series/updated` take no condition, so those get
 // filtered here instead.
@@ -293,11 +316,15 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         author: authors.join(', '),
         synopsis: metadata.summary ? metadata.summary : booksMetadata.summary,
         tagGroups: tagSections,
+        shareUrl: pickShareUrl(metadata.links),
         additionalInfo: {
           language: metadata.language,
           readingDirection: metadata.readingDirection,
           publisher: metadata.publisher,
           books: String(result.booksCount),
+          ...(metadata.totalBookCount === undefined
+            ? {}
+            : { totalBooks: String(metadata.totalBookCount) }),
           booksRead: String(result.booksReadCount),
           booksUnread: String(result.booksUnreadCount),
           booksInProgress: String(result.booksInProgressCount),

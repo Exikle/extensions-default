@@ -61,15 +61,11 @@ import {
   getHideAdultContent,
   getKomgaBaseURL,
   getKomgaCredentials,
-  getShowContinueReading,
-  getShowOnDeck,
-  getShowRecentlyAdded,
-  getShowFeatured,
-  getShowGenres,
-  getShowProminent,
-  getShowRecentlyUpdated,
+  getSectionStyle,
+  type SectionStyle,
 } from './utils/config.js'
 import { SettingsForm } from './forms/settings_form.js'
+import { DISCOVER_SECTIONS } from './discover_sections.js'
 import { parseChapterTitle } from './utils/titles.js'
 import { ProgressManagementForm } from './forms/progress_management_form.js'
 import type KomgaConfig from './pbconfig.js'
@@ -134,6 +130,15 @@ const UPDATE_CHECK_MARGIN_MS = 60 * 60 * 1000
 
 // Guards the paging loop; far more than a sane library needs in one pass
 const MAX_UPDATE_PAGES = 50
+
+const STYLE_TO_SECTION_TYPE: Record<
+  Exclude<SectionStyle, 'hidden'>,
+  DiscoverSectionType
+> = {
+  simple: DiscoverSectionType.simpleCarousel,
+  large: DiscoverSectionType.prominentCarousel,
+  hero: DiscoverSectionType.featured,
+}
 
 const DEFAULT_SORT = 'metadata.titleSort,asc'
 
@@ -721,111 +726,123 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     const sections: DiscoverSection[] = []
 
-    if (getShowFeatured()) {
-      sections.push({
-        // id and settings key stay `featured` so existing toggle state
-        // survives; the title describes the content, not the card style
-        id: 'featured',
-        title: 'New Arrivals',
-        type: DiscoverSectionType.featured,
-      })
-    }
+    for (const definition of DISCOVER_SECTIONS) {
+      const style = getSectionStyle(definition.id)
+      if (style === 'hidden') {
+        continue
+      }
 
-    const showOnDeck = getShowOnDeck()
-    const showContinueReading = getShowContinueReading()
-
-    if (showOnDeck) {
       sections.push({
-        id: 'showOnDeck',
-        title: 'On Deck',
-        type: DiscoverSectionType.simpleCarousel,
-      })
-    }
-
-    if (showContinueReading) {
-      sections.push({
-        id: 'continueReading',
-        title: 'Continue Reading',
-        type: DiscoverSectionType.simpleCarousel,
-      })
-    }
-
-    if (getShowRecentlyAdded()) {
-      sections.push({
-        id: 'recentlyAdded',
-        title: 'Recently Added',
-        type: DiscoverSectionType.simpleCarousel,
-      })
-    }
-
-    if (getShowRecentlyUpdated()) {
-      sections.push({
-        id: 'recentlyUpdated',
-        title: 'Recently Updated',
-        type: DiscoverSectionType.simpleCarousel,
-      })
-    }
-
-    if (getShowProminent()) {
-      sections.push({
-        id: 'prominent',
-        title: 'Pick Up Where You Left Off',
-        type: DiscoverSectionType.prominentCarousel,
-      })
-    }
-
-    if (getShowGenres()) {
-      sections.push({
-        id: 'genres',
-        title: 'Genres',
-        type: DiscoverSectionType.genres,
+        id: definition.id,
+        title: definition.title,
+        type: definition.fixedStyle
+          ? DiscoverSectionType.genres
+          : STYLE_TO_SECTION_TYPE[style],
       })
     }
 
     return sections
   }
 
+  // One builder per source shape, so a section's style only changes how its
+  // covers are presented rather than duplicating the query
+  private seriesItem(
+    serie: {
+      id: string
+      name: string
+      booksCount: number
+      booksReadCount: number
+      metadata: {
+        title: string
+        status: string
+        publisher: string
+        summary: string
+        genres?: Array<string>
+        ageRating?: number
+      }
+    },
+    style: SectionStyle
+  ): DiscoverSectionItem {
+    const base = {
+      mangaId: serie.id,
+      title: serie.metadata.title || serie.name,
+      imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
+      contentRating: parseContentRating(serie.metadata),
+    }
+
+    if (style === 'hero') {
+      return {
+        type: 'featuredCarouselItem',
+        ...base,
+        supertitle: [
+          parseMangaStatus(serie.metadata.status).toUpperCase(),
+          serie.metadata.publisher,
+        ]
+          .filter(Boolean)
+          .join(' \u00b7 '),
+        summary: serie.metadata.summary,
+        infoItems: [
+          { symbol: 'book.fill', text: `${serie.booksCount}` },
+          {
+            symbol: 'checkmark.circle.fill',
+            text: `${serie.booksReadCount} read`,
+          },
+        ],
+      }
+    }
+
+    const subtitle =
+      serie.booksCount > 0
+        ? `${serie.booksReadCount} of ${serie.booksCount} read`
+        : undefined
+
+    return style === 'large'
+      ? { type: 'prominentCarouselItem', ...base, subtitle }
+      : { type: 'simpleCarouselItem', ...base, subtitle: undefined }
+  }
+
   async getDiscoverSectionItems(
     section: DiscoverSection,
     metadata: { page: number } | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    switch (section.id) {
-      case 'showOnDeck': {
-        const { data, error } = await getBooksOnDeck({
-          query: { page: metadata?.page },
-        })
+    const style = getSectionStyle(section.id)
+    const page = metadata?.page
 
+    switch (section.id) {
+      case 'onDeck': {
+        const { data, error } = await getBooksOnDeck({ query: { page } })
         if (!data) {
           throw new Error(JSON.stringify(error, undefined, 2))
         }
 
         const hidden = await hiddenSeriesIds()
-
         const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          if (hidden.has(serie.seriesId)) {
+
+        for (const book of data.content ?? []) {
+          if (hidden.has(book.seriesId)) {
             continue
           }
 
-          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/books/${serie.id}/thumbnail`
-
           items.push({
-            type: 'simpleCarouselItem',
-            title: serie.seriesTitle,
-            imageUrl: thumbnailUrl,
-            mangaId: serie.seriesId,
-            subtitle: undefined,
+            type:
+              style === 'large'
+                ? 'prominentCarouselItem'
+                : 'simpleCarouselItem',
+            mangaId: book.seriesId,
+            title: book.seriesTitle,
+            subtitle: book.metadata.title,
+            imageUrl: `${client.getConfig().baseUrl}/api/v1/books/${book.id}/thumbnail`,
           })
         }
 
         return {
           items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
         }
       }
-      case 'continueReading': {
+      case 'keepReading': {
         const { data, error } = await getSeriesList({
-          query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
+          query: { sort: ['readProgress.readDate,desc'], page },
           body: {
             condition: {
               allOf: [
@@ -836,174 +853,35 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
             },
           },
         })
-
         if (!data) {
           throw new Error(JSON.stringify(error, undefined, 2))
         }
 
-        const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          if (isHiddenSeries(serie.metadata)) {
-            continue
-          }
-
-          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
-
-          items.push({
-            type: 'simpleCarouselItem',
-            title: serie.name,
-            imageUrl: thumbnailUrl,
-            mangaId: serie.id,
-            subtitle: undefined,
-            contentRating: parseContentRating(serie.metadata),
-          })
-        }
-
         return {
-          items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+          items: (data.content ?? []).map((serie) =>
+            this.seriesItem(serie, style)
+          ),
+          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
         }
       }
-      case 'recentlyAdded': {
-        const { data, error } = await getSeriesNew({
-          query: { page: metadata?.page, deleted: false },
-        })
-
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          if (isHiddenSeries(serie.metadata)) {
-            continue
-          }
-
-          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
-
-          items.push({
-            type: 'simpleCarouselItem',
-            title: serie.name,
-            imageUrl: thumbnailUrl,
-            mangaId: serie.id,
-            subtitle: undefined,
-            contentRating: parseContentRating(serie.metadata),
-          })
-        }
-
-        return {
-          items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
-        }
-      }
+      case 'recentlyAdded':
       case 'recentlyUpdated': {
-        const { data, error } = await getSeriesUpdated({
-          query: { page: metadata?.page, deleted: false },
+        const fetch =
+          section.id === 'recentlyAdded' ? getSeriesNew : getSeriesUpdated
+        const { data, error } = await fetch({
+          query: { page, deleted: false },
         })
-
         if (!data) {
           throw new Error(JSON.stringify(error, undefined, 2))
         }
 
-        const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          if (isHiddenSeries(serie.metadata)) {
-            continue
-          }
-
-          const thumbnailUrl = `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`
-
-          items.push({
-            type: 'simpleCarouselItem',
-            title: serie.name,
-            imageUrl: thumbnailUrl,
-            mangaId: serie.id,
-            subtitle: undefined,
-            contentRating: parseContentRating(serie.metadata),
-          })
-        }
+        const items = (data.content ?? [])
+          .filter((serie) => !isHiddenSeries(serie.metadata))
+          .map((serie) => this.seriesItem(serie, style))
 
         return {
           items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
-        }
-      }
-      case 'featured': {
-        const { data, error } = await getSeriesNew({
-          query: { page: metadata?.page, deleted: false },
-        })
-
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          if (isHiddenSeries(serie.metadata)) {
-            continue
-          }
-
-          items.push({
-            type: 'featuredCarouselItem',
-            mangaId: serie.id,
-            title: serie.metadata.title,
-            imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
-            supertitle: [
-              parseMangaStatus(serie.metadata.status).toUpperCase(),
-              serie.metadata.publisher,
-            ]
-              .filter(Boolean)
-              .join(' \u00b7 '),
-            summary: serie.metadata.summary,
-            infoItems: [
-              { symbol: 'book.fill', text: `${serie.booksCount}` },
-              {
-                symbol: 'checkmark.circle.fill',
-                text: `${serie.booksReadCount} read`,
-              },
-            ],
-            contentRating: parseContentRating(serie.metadata),
-          })
-        }
-
-        return {
-          items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
-        }
-      }
-      case 'prominent': {
-        const { data, error } = await getSeriesList({
-          query: { sort: ['readProgress.readDate,desc'], page: metadata?.page },
-          body: {
-            condition: {
-              allOf: [
-                { deleted: isFalse() },
-                { readStatus: isEqualTo('IN_PROGRESS') },
-                ...hiddenGenreConditions(),
-              ],
-            },
-          },
-        })
-
-        if (!data) {
-          throw new Error(JSON.stringify(error, undefined, 2))
-        }
-
-        const items: DiscoverSectionItem[] = []
-        for (const serie of data.content ?? []) {
-          items.push({
-            type: 'prominentCarouselItem',
-            mangaId: serie.id,
-            title: serie.name,
-            imageUrl: `${client.getConfig().baseUrl}/api/v1/series/${serie.id}/thumbnail`,
-            subtitle: `${serie.booksReadCount} of ${serie.booksCount} read`,
-            contentRating: parseContentRating(serie.metadata),
-          })
-        }
-
-        return {
-          items,
-          metadata: data.last ? undefined : { page: (metadata?.page ?? 0) + 1 },
+          metadata: data.last ? undefined : { page: (page ?? 0) + 1 },
         }
       }
       case 'genres': {
@@ -1018,8 +896,6 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
           .map((genre) => ({
             type: 'genresCarouselItem' as const,
             name: capitalize(genre),
-            // Tapping runs a normal search; the shape here has to match what
-            // getSearchResults reads out of `metadata`
             searchQuery: {
               title: '',
               metadata: [
@@ -1034,7 +910,7 @@ export class KomgaExtension implements ExtensionImpl<typeof KomgaConfig> {
         return { items, metadata: undefined }
       }
       default: {
-        throw new Error('Unknown section')
+        throw new Error(`Unknown section ${section.id}`)
       }
     }
   }

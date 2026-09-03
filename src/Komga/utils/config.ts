@@ -1,26 +1,12 @@
 const KEY_KOMGA_BASE_URL = 'serverURL'
 const KEY_KOMGA_USERNAME = 'serverUsername'
 const KEY_KOMGA_PASSWORD = 'serverPassword'
-const KEY_SHOW_ON_DECK = 'showOnDeck'
-const KEY_SHOW_CONTINUE_READING = 'showContinueReading'
-const KEY_SHOW_RECENTLY_ADDED = 'showRecentlyAdded'
-const KEY_SHOW_RECENTLY_UPDATED = 'showRecentlyUpdated'
-const KEY_SHOW_FEATURED = 'showFeatured'
-const KEY_SHOW_PROMINENT = 'showProminent'
-const KEY_SHOW_GENRES = 'showGenres'
 const KEY_HIDE_ADULT_CONTENT = 'hideAdultContent'
 const KEY_ADULT_GENRES = 'adultGenres'
 
 const DEFAULT_KOMGA_BASE_URL = 'https://demo.komga.org'
 const DEFAULT_KOMGA_USERNAME = 'demo@komga.org'
 const DEFAULT_KOMGA_PASSWORD = 'komga-demo'
-const DEFAULT_SHOW_ON_DECK = true
-const DEFAULT_SHOW_CONTINUE_READING = true
-const DEFAULT_SHOW_RECENTLY_ADDED = true
-const DEFAULT_SHOW_RECENTLY_UPDATED = true
-const DEFAULT_SHOW_FEATURED = false
-const DEFAULT_SHOW_PROMINENT = false
-const DEFAULT_SHOW_GENRES = true
 const DEFAULT_HIDE_ADULT_CONTENT = false
 // Matched case-insensitively against a series' genres
 const DEFAULT_ADULT_GENRES = [
@@ -61,44 +47,6 @@ export function setKomgaCredentials(username: string, password: string) {
   Application.setSecureState(password, KEY_KOMGA_PASSWORD)
 }
 
-export function getShowOnDeck() {
-  return getStateOrDefault(KEY_SHOW_ON_DECK, DEFAULT_SHOW_ON_DECK)
-}
-
-export function setShowOnDeck(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_ON_DECK)
-}
-
-export function getShowContinueReading() {
-  return getStateOrDefault(
-    KEY_SHOW_CONTINUE_READING,
-    DEFAULT_SHOW_CONTINUE_READING
-  )
-}
-
-export function setShowContinueReading(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_CONTINUE_READING)
-}
-
-export function getShowRecentlyAdded() {
-  return getStateOrDefault(KEY_SHOW_RECENTLY_ADDED, DEFAULT_SHOW_RECENTLY_ADDED)
-}
-
-export function setShowRecentlyAdded(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_RECENTLY_ADDED)
-}
-
-export function getShowRecentlyUpdated() {
-  return getStateOrDefault(
-    KEY_SHOW_RECENTLY_UPDATED,
-    DEFAULT_SHOW_RECENTLY_UPDATED
-  )
-}
-
-export function setShowRecentlyUpdated(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_RECENTLY_UPDATED)
-}
-
 export function getHideAdultContent() {
   return getStateOrDefault(KEY_HIDE_ADULT_CONTENT, DEFAULT_HIDE_ADULT_CONTENT)
 }
@@ -120,26 +68,65 @@ export function setAdultGenres(newValue: string[]) {
   Application.setState(newValue, KEY_ADULT_GENRES)
 }
 
-export function getShowGenres() {
-  return getStateOrDefault(KEY_SHOW_GENRES, DEFAULT_SHOW_GENRES)
+// How a discover section is presented. `hidden` drops it entirely.
+export type SectionStyle = 'hidden' | 'simple' | 'large' | 'hero'
+
+export const SECTION_STYLES: Array<{ id: SectionStyle; title: string }> = [
+  { id: 'hidden', title: 'Hidden' },
+  { id: 'simple', title: 'Regular' },
+  { id: 'large', title: 'Large' },
+  { id: 'hero', title: 'Hero' },
+]
+
+const styleKey = (sectionId: string) => `sectionStyle.${sectionId}`
+
+// Earlier versions stored a boolean per section plus two extra sections that
+// only differed in presentation. Fold those into the style setting so nobody's
+// configuration resets on upgrade.
+const LEGACY_VISIBILITY: Record<string, string> = {
+  onDeck: 'showOnDeck',
+  keepReading: 'showContinueReading',
+  recentlyAdded: 'showRecentlyAdded',
+  recentlyUpdated: 'showRecentlyUpdated',
+  genres: 'showGenres',
 }
 
-export function setShowGenres(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_GENRES)
+const LEGACY_STYLE_SECTION: Record<string, SectionStyle> = {
+  showFeatured: 'hero',
+  showProminent: 'large',
 }
 
-export function getShowFeatured() {
-  return getStateOrDefault(KEY_SHOW_FEATURED, DEFAULT_SHOW_FEATURED)
+const LEGACY_STYLE_OWNER: Record<string, string> = {
+  showFeatured: 'recentlyAdded',
+  showProminent: 'keepReading',
 }
 
-export function setShowFeatured(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_FEATURED)
+export function getSectionStyle(sectionId: string): SectionStyle {
+  const stored = Application.getState(styleKey(sectionId))
+  if (typeof stored === 'string') {
+    return stored as SectionStyle
+  }
+
+  // A duplicate section that was switched on becomes its owner's style
+  for (const [legacyKey, style] of Object.entries(LEGACY_STYLE_SECTION)) {
+    if (
+      LEGACY_STYLE_OWNER[legacyKey] === sectionId &&
+      Application.getState(legacyKey) === true
+    ) {
+      return style
+    }
+  }
+
+  const legacyVisibility = LEGACY_VISIBILITY[sectionId]
+  if (legacyVisibility !== undefined) {
+    return Application.getState(legacyVisibility) === false
+      ? 'hidden'
+      : 'simple'
+  }
+
+  return 'simple'
 }
 
-export function getShowProminent() {
-  return getStateOrDefault(KEY_SHOW_PROMINENT, DEFAULT_SHOW_PROMINENT)
-}
-
-export function setShowProminent(newValue: boolean) {
-  Application.setState(newValue, KEY_SHOW_PROMINENT)
+export function setSectionStyle(sectionId: string, style: SectionStyle) {
+  Application.setState(style, styleKey(sectionId))
 }
